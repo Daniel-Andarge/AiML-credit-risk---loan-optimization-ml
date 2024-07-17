@@ -3,39 +3,44 @@ import numpy as np
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.impute import SimpleImputer
-
 from datetime import datetime
 import pytz
 
-import pandas as pd
-import numpy as np
-from datetime import datetime
-import pytz
 
 
 def create_rfms_features(df):
-
     df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'], format='%Y-%m-%d %H:%M:%S%z')
 
-
     # Calculate Recency
-    df['Recency'] = max(df['TransactionStartTime']) - df['TransactionStartTime']
+    max_date = df['TransactionStartTime'].max()
+    df['dif'] = max_date - df['TransactionStartTime']
 
-    # df['Recency'] = df.groupby('CustomerId')['TransactionStartTime'].transform(lambda x: (current_time - x.max()).days)
+    # Group by 'CustomerID' and calculate the minimum difference for recency
+    df_recency = df.groupby('CustomerID')['dif'].min().reset_index()
+
+    # Convert the 'dif' to days to get the recency value
+    df_recency['Recency'] = df_recency['dif'].dt.days
+
+    # Merge recency back to the main dataframe
+    df = df.merge(df_recency[['CustomerID', 'Recency']], on='CustomerID')
+
+    # Drop the 'dif' column
+    df.drop(columns=['dif'], inplace=True)
 
     # Calculate Frequency
-    # df['Frequency'] = df.groupby('CustomerId')['TransactionId'].transform('count')
-
-    df['frequency'] = df.groupby('AccountId')['TransactionId'].transform('count')
+    df['Frequency'] = df.groupby('CustomerID')['TransactionId'].transform('count')
 
     # Calculate Monetary Value
-    df['Monetary'] = df.groupby('CustomerId')['Amount'].transform('sum') / df['Frequency']
+    df['Monetary'] = df.groupby('CustomerID')['Amount'].transform('sum') / df['Frequency']
 
     # Calculate Standard Deviation of Amounts
-    df['StdDev'] = df.groupby('CustomerId')['Amount'].transform(lambda x: np.std(x, ddof=0))
+    df['StdDev'] = df.groupby('CustomerID')['Amount'].transform(lambda x: np.std(x, ddof=0))
 
     # Dropping duplicates to get one row per customer with RFMS values
-    rfms_df = df.drop_duplicates(subset='CustomerId', keep='first')
+    rfms_df = df.drop_duplicates(subset='CustomerID', keep='first')
+
+    # Selecting the relevant columns for the final RFMS dataframe
+    rfms_df = rfms_df[['CustomerID', 'Recency', 'Frequency', 'Monetary', 'StdDev']]
 
     return rfms_df
 
