@@ -14,13 +14,19 @@ import pytz
 
 
 def create_rfms_features(df):
-    current_time = datetime.now(tz=pytz.UTC)
+
+    df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'], format='%Y-%m-%d %H:%M:%S%z')
+
 
     # Calculate Recency
-    df['Recency'] = df.groupby('CustomerId')['TransactionStartTime'].transform(lambda x: (current_time - x.max()).days)
+    df['Recency'] = max(df['TransactionStartTime']) - df['TransactionStartTime']
+
+    # df['Recency'] = df.groupby('CustomerId')['TransactionStartTime'].transform(lambda x: (current_time - x.max()).days)
 
     # Calculate Frequency
-    df['Frequency'] = df.groupby('CustomerId')['TransactionId'].transform('count')
+    # df['Frequency'] = df.groupby('CustomerId')['TransactionId'].transform('count')
+
+    df['frequency'] = df.groupby('AccountId')['TransactionId'].transform('count')
 
     # Calculate Monetary Value
     df['Monetary'] = df.groupby('CustomerId')['Amount'].transform('sum') / df['Frequency']
