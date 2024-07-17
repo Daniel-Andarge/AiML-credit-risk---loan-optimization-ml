@@ -1,5 +1,13 @@
-# Bati Bank Credit Scoring Model
-The Bati Bank Credit Scoring Model leverages transactional data sourced from the eCommerce platform to establish a robust framework for categorizing users into high-risk and low-risk segments. This initiative involves identifying pertinent predictors of default, selecting relevant features, and constructing predictive models to assess risk probabilities. Ultimately, the model aims to compute credit scores, determine optimal loan amounts, and recommend suitable durations, thereby facilitating informed lending decisions and risk management strategies at Bati Bank.
+# Credit Risk Modeling and Loan Optimization using Machine Learning
+This project aims to develop advanced machine learning models for credit risk assessment and loan optimization in the context of a buy-now-pay-later (BNPL) service.
+The key objectives of this project are:
+1. Credit Scoring Model: Create a machine learning model that can accurately predict the credit risk and default probability of new customers applying for the BNPL service.
+2. Loan Optimization Model: Develop a machine learning model that can determine the optimal loan amount, repayment period, and other terms for each applicant based on their credit profile and other relevant factors.
+
+The project leverages various supervised and unsupervised machine learning techniques, such as logistic regression, decision trees, random forests, and clustering algorithms, to build robust and performant credit risk and loan optimization models.
+The models will be trained and validated using historical BNPL application and repayment data, as well as external credit bureau information. The resulting models will be integrated into the BNPL platform to enhance the customer experience, improve credit decisions, and optimize loan portfolios.
+This project aims to deliver a comprehensive machine learning-based solution that can help the BNPL service provider make more informed and data-driven decisions, ultimately leading to increased customer satisfaction, reduced default rates, and improved overall business performance.
+
 
 ## Getting Started
 
