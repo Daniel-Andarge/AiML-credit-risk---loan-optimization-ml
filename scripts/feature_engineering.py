@@ -3,10 +3,12 @@ import numpy as np
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.impute import SimpleImputer
-from datetime import datetime
-import pytz
 import matplotlib.pyplot as plt
 import seaborn as sns
+from datetime import datetime
+import pytz
+from category_encoders.woe import WOEEncoder
+
 
 
 # Set general aesthetics for the plots
@@ -212,7 +214,7 @@ def normalize_and_standardize_features(df):
         return None
 
 # Outliers
-def detect_outlierss(data):
+def detect_rfms_outliers(data):
     fig, ax = plt.subplots(figsize=(12, 6))
     sns.boxplot(data=data, orient='v', ax=ax)
     ax.set_title('Box Plot of RFMS Features')
@@ -261,9 +263,83 @@ def classify_customer(row):
     else:
         return 'High-risk'
 
+
 def apply_classification(df):
+    # Apply the classify_customer function to each row of the DataFrame
     df['Classification'] = df.apply(classify_customer, axis=1)
+
+    # Create the Binary_Classification column based on the Classification column
+    df['Binary_Classification'] = 0
+    df.loc[df['Classification'] == 'High-risk', 'Binary_Classification'] = 1
+
     return df
 
 
+def visualize_rfms(df):
+    # Prepare the color mapping
+    color_map = {'Low-risk': 'green', 'High-risk': 'red'}
+    df['color'] = df['Classification'].map(color_map)
 
+    # Create 3D scatter plot
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot the scatter points
+    ax.scatter(df['<Recency_avg'], df['>Frequency_avg'], df['>Monetary_avg'], c=df['color'], s=50, marker='o')
+
+    # Set axis labels
+    ax.set_xlabel('Recency')
+    ax.set_ylabel('Frequency')
+    ax.set_zlabel('Monetary')
+
+    # Set title
+    ax.set_title('RFMS 3D Visualization')
+
+    # Adjust axis ranges
+    x_min, x_max = min(df['<Recency_avg']) - 0.1 * abs(min(df['<Recency_avg'])), max(df['<Recency_avg']) + 0.1 * abs(
+        max(df['<Recency_avg']))
+    y_min, y_max = min(df['>Frequency_avg']) - 0.1 * abs(min(df['>Frequency_avg'])), max(
+        df['>Frequency_avg']) + 0.1 * abs(max(df['>Frequency_avg']))
+    z_min, z_max = min(df['>Monetary_avg']) - 0.1 * abs(min(df['>Monetary_avg'])), max(df['>Monetary_avg']) + 0.1 * abs(
+        max(df['>Monetary_avg']))
+
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.set_zlim(z_min, z_max)
+
+    plt.show()
+
+
+
+
+
+import pandas as pd
+import numpy as np
+
+def calculate_woe_iv(df, feature, target):
+    eps = 1e-10  # to avoid division by zero
+    df = df[[feature, target]].copy()
+    df['bin'] = pd.qcut(df[feature], q=10, duplicates='drop')  # Adjust 'q' for number of bins
+    grouped = df.groupby('bin')[target].agg(['count', 'sum'])
+    grouped['non_event'] = grouped['count'] - grouped['sum']
+    grouped['event_rate'] = grouped['sum'] / (grouped['sum'].sum() + eps)
+    grouped['non_event_rate'] = grouped['non_event'] / (grouped['non_event'].sum() + eps)
+    grouped['woe'] = np.log(grouped['event_rate'] / (grouped['non_event_rate'] + eps) + eps)
+    grouped['iv'] = (grouped['event_rate'] - grouped['non_event_rate']) * grouped['woe']
+    iv = grouped['iv'].sum()
+    return grouped[['woe']], iv
+
+def woe_binning(df, features, target):
+    woe_dict = {}
+    iv_dict = {}
+    for feature in features:
+        woe_values, iv = calculate_woe_iv(df, feature, target)
+        woe_dict[feature] = woe_values
+        iv_dict[feature] = iv
+        # Map WoE values to the original DataFrame
+        df = df.copy()
+        df['bin'] = pd.qcut(df[feature], q=10, duplicates='drop')
+        df = df.merge(woe_values, left_on='bin', right_index=True, how='left', suffixes=('', '_woe'))
+        df[feature] = df['woe']
+        df.drop(columns=['bin', 'woe'], inplace=True)
+    return df, woe_dict, iv_dict
