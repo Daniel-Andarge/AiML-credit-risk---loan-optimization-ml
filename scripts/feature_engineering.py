@@ -252,9 +252,7 @@ def assign_comparative_binary_score(df):
     df['>StdDev_avg'] = (df['StdDev'] > std_avg).astype(int)
     return df
 
-# Define Low-risk classification rules
-import pandas as pd
-
+# Define High-risk and Low-risk classification rules
 def classify_customer(row):
     if row['<Recency_avg'] == 1 and row['>Frequency_avg'] == 1:
         return 'Low-risk'
