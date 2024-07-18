@@ -11,7 +11,8 @@ import math
 logging.basicConfig(filename='eda_analysis.log', level=logging.INFO, 
                     format='%(asctime)s:%(levelname)s:%(message)s')
 
-
+    # Set general aesthetics for the plots
+sns.set_style("whitegrid")
 def eda_overview(df):
     """
     Performs Exploratory Data Analysis (EDA) to provide an overview of the dataset.
@@ -341,3 +342,7 @@ def detect_outliers(df):
         
     except Exception as e:
         logging.error(f"An error occurred during outlier detection: {str(e)}")
+
+
+
+

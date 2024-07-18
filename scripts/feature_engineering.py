@@ -5,8 +5,12 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.impute import SimpleImputer
 from datetime import datetime
 import pytz
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
+# Set general aesthetics for the plots
+sns.set_style("whitegrid")
 
 def create_rfms_features(df):
     df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'], format='%Y-%m-%d %H:%M:%S%z')
@@ -15,32 +19,32 @@ def create_rfms_features(df):
     max_date = df['TransactionStartTime'].max()
     df['dif'] = max_date - df['TransactionStartTime']
 
-    # Group by 'CustomerID' and calculate the minimum difference for recency
-    df_recency = df.groupby('CustomerID')['dif'].min().reset_index()
+    # Group by 'AccountId' and calculate the minimum difference for recency
+    df_recency = df.groupby('AccountId')['dif'].min().reset_index()
 
     # Convert the 'dif' to days to get the recency value
     df_recency['Recency'] = df_recency['dif'].dt.days
 
     # Merge recency back to the main dataframe
-    df = df.merge(df_recency[['CustomerID', 'Recency']], on='CustomerID')
+    df = df.merge(df_recency[['AccountId', 'Recency']], on='AccountId')
 
     # Drop the 'dif' column
     df.drop(columns=['dif'], inplace=True)
 
     # Calculate Frequency
-    df['Frequency'] = df.groupby('CustomerID')['TransactionId'].transform('count')
+    df['Frequency'] = df.groupby('AccountId')['TransactionId'].transform('count')
 
     # Calculate Monetary Value
-    df['Monetary'] = df.groupby('CustomerID')['Amount'].transform('sum') / df['Frequency']
+    df['Monetary'] = df.groupby('AccountId')['Amount'].transform('sum') / df['Frequency']
 
     # Calculate Standard Deviation of Amounts
-    df['StdDev'] = df.groupby('CustomerID')['Amount'].transform(lambda x: np.std(x, ddof=0))
+    df['StdDev'] = df.groupby('AccountId')['Amount'].transform(lambda x: np.std(x, ddof=0))
 
     # Dropping duplicates to get one row per customer with RFMS values
-    rfms_df = df.drop_duplicates(subset='CustomerID', keep='first')
+    rfms_df = df.drop_duplicates(subset='AccountId', keep='first')
 
     # Selecting the relevant columns for the final RFMS dataframe
-    rfms_df = rfms_df[['CustomerID', 'Recency', 'Frequency', 'Monetary', 'StdDev']]
+    # rfms_df = rfms_df[['AccountId', 'Recency', 'Frequency', 'Monetary', 'StdDev']]
 
     return rfms_df
 
@@ -61,14 +65,14 @@ def create_rfms_indicator_features(rfms_df):
 def create_aggregate_features(df):
     try:
         # Group transactions by customer
-        grouped = df.groupby('CustomerId')
+        grouped = df.groupby('AccountId')
 
         # Calculate aggregate features
         aggregate_features = grouped['Amount'].agg(['sum', 'mean', 'count', 'std']).reset_index()
-        aggregate_features.columns = ['CustomerId', 'TotalTransactionAmount', 'AverageTransactionAmount', 'TransactionCount', 'StdTransactionAmount']
+        aggregate_features.columns = ['AccountId', 'TotalTransactionAmount', 'AverageTransactionAmount', 'TransactionCount', 'StdTransactionAmount']
 
         # Merge aggregate features with original dataframe
-        df = pd.merge(df, aggregate_features, on='CustomerId', how='left')
+        df = pd.merge(df, aggregate_features, on='AccountId', how='left')
 
         return df
 
@@ -107,7 +111,7 @@ def remove_outliers(df):
     """
     # Select numerical features
     numerical_features = df.select_dtypes(include=[np.number])
-    
+
     # Initialize a boolean mask to keep track of outliers
     mask = pd.Series([True] * len(df))
 
@@ -117,7 +121,7 @@ def remove_outliers(df):
         iqr = q3 - q1
         lower_bound = q1 - 1.5 * iqr
         upper_bound = q3 + 1.5 * iqr
-        
+
         # Update the mask to filter out rows containing outliers
         mask = mask & ~((df[column] < lower_bound) | (df[column] > upper_bound))
 
@@ -179,7 +183,7 @@ def handle_missing_values(df):
         print(f"Error occurred during handling missing values: {e}")
         return None
 
-def normalize_and_standardize_numerical_features(df):
+def normalize_and_standardize_features(df):
     """
     Normalizes and standardizes the numerical features in the input dataframe.
 
@@ -206,3 +210,62 @@ def normalize_and_standardize_numerical_features(df):
     except Exception as e:
         print(f"Error occurred during normalization and standardization of numerical features: {e}")
         return None
+
+# Outliers
+def detect_outlierss(data):
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.boxplot(data=data, orient='v', ax=ax)
+    ax.set_title('Box Plot of RFMS Features')
+    ax.set_xlabel('Feature')
+    ax.set_ylabel('Range')
+
+    # Get the outlier indices for each feature
+    outlier_indices = {}
+    for col in data.columns:
+        q1 = data[col].quantile(0.25)
+        q3 = data[col].quantile(0.75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        outlier_indices[col] = data[(data[col] < lower_bound) | (data[col] > upper_bound)].index
+
+    return outlier_indices
+
+def scale_features(df):
+    min_max_scaler = MinMaxScaler()
+    scaled = min_max_scaler.fit_transform(df)
+    df_scaled = pd.DataFrame(scaled, columns=df.columns)
+    return df_scaled
+
+def assign_comparative_binary_score(df):
+
+    # Calculate the average for all rfms
+    recency_avg = df['Recency'].mean()
+    frequency_avg = df['Frequency'].mean()
+    monetary_avg = df['Monetary'].mean()
+    std_avg = df['StdDev'].mean()
+
+    # Create new feature columns
+    df['<Recency_avg'] = (df['Recency'] < recency_avg).astype(int)
+    df['>Frequency_avg'] = (df['Frequency'] > frequency_avg).astype(int)
+    df['>Monetary_avg'] = (df['Monetary'] > monetary_avg).astype(int)
+    df['>StdDev_avg'] = (df['StdDev'] > std_avg).astype(int)
+    return df
+
+# Define Low-risk classification rules
+import pandas as pd
+
+def classify_customer(row):
+    if row['<Recency_avg'] == 1 and row['>Frequency_avg'] == 1:
+        return 'Low-risk'
+    elif row['<Recency_avg'] == 1 and row['>Frequency_avg'] == 0 and row['>Monetary_avg'] == 1:
+        return 'Low-risk'
+    else:
+        return 'High-risk'
+
+def apply_classification(df):
+    df['Classification'] = df.apply(classify_customer, axis=1)
+    return df
+
+
+
