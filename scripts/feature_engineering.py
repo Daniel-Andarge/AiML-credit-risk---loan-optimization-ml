@@ -5,10 +5,6 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.impute import SimpleImputer
 import matplotlib.pyplot as plt
 import seaborn as sns
-from datetime import datetime
-import pytz
-from category_encoders.woe import WOEEncoder
-from scipy.stats import information_value
 
 
 # Set general aesthetics for the plots
@@ -111,7 +107,18 @@ def create_rfms_features(df, r_weight=0.4, f_weight=0.3, m_weight=0.2, s_weight=
     # Calculate Recency
     max_date = df['TransactionStartTime'].max()
     df['dif'] = max_date - df['TransactionStartTime']
-    df['Recency'] = (max_date - df['TransactionStartTime']).dt.days
+
+    # Group by 'AccountId' and calculate the minimum difference for recency
+    df_recency = df.groupby('AccountId')['dif'].min().reset_index()
+
+    # Convert the 'dif' to days to get the recency value
+    df_recency['Recency'] = df_recency['dif'].dt.days
+
+    # Merge recency back to the main dataframe
+    df = df.merge(df_recency[['AccountId', 'Recency']], on='AccountId')
+
+    # Drop the 'dif' column
+    df.drop(columns=['dif'], inplace=True)
 
     # Calculate Frequency
     df['Frequency'] = df.groupby('AccountId')['TransactionId'].transform('count')
@@ -285,29 +292,48 @@ def normalize_and_standardize_features(df):
         return None
 
 # Outliers
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+
 def detect_rfms_outliers(data):
+    # Select only the numeric features
+    numeric_cols = data.select_dtypes(include=['int64', 'int32','float64']).columns
+    numeric_data = data[numeric_cols]
+
     fig, ax = plt.subplots(figsize=(12, 6))
-    sns.boxplot(data=data, orient='v', ax=ax)
-    ax.set_title('Box Plot for All Features')
+    sns.boxplot(data=numeric_data, orient='v', ax=ax)
+    ax.set_title('Box Plot for Numeric Features')
     ax.set_xlabel('Feature')
     ax.set_ylabel('Range')
 
-    # Get the outlier indices for each feature
+    # Get the outlier indices for each numeric feature
     outlier_indices = {}
-    for col in data.columns:
-        q1 = data[col].quantile(0.25)
-        q3 = data[col].quantile(0.75)
+    for col in numeric_cols:
+        q1 = numeric_data[col].quantile(0.25)
+        q3 = numeric_data[col].quantile(0.75)
         iqr = q3 - q1
         lower_bound = q1 - 1.5 * iqr
         upper_bound = q3 + 1.5 * iqr
-        outlier_indices[col] = data[(data[col] < lower_bound) | (data[col] > upper_bound)].index
+        outlier_indices[col] = numeric_data[(numeric_data[col] < lower_bound) | (numeric_data[col] > upper_bound)].index
 
     return outlier_indices
 
 def scale_features(df):
+    # Select only the numeric features
+    numeric_cols = df.select_dtypes(include=['int64', 'int32', 'float64']).columns
+    numeric_data = df[numeric_cols]
+
+    # Scale the numeric features using MinMaxScaler
     min_max_scaler = MinMaxScaler()
-    scaled = min_max_scaler.fit_transform(df)
-    df_scaled = pd.DataFrame(scaled, columns=df.columns)
+    scaled_numeric = min_max_scaler.fit_transform(numeric_data)
+
+    # Create a new dataframe with the scaled numeric features
+    df_scaled = pd.DataFrame(scaled_numeric, columns=numeric_cols)
+
+    # Combine the scaled numeric features with the original non-numeric features
+    df_scaled = pd.concat([df_scaled, df.drop(numeric_cols, axis=1)], axis=1)
+
     return df_scaled
 
 def assign_comparative_binary_score(df):
@@ -383,47 +409,58 @@ def visualize_rfms(df):
 
     plt.show()
 
+def calculate_woe_iv(df, feature, target, bins=10):
+    # Binning the continuous variable if necessary
+    if df[feature].dtype.kind in 'bifc':
+        df[feature + '_bin'], bin_edges = pd.qcut(df[feature], q=bins, duplicates='drop', retbins=True)
+    else:
+        df[feature + '_bin'] = df[feature]
 
-def woe_binning(df):
-    """
-    Performs Weight of Evidence (WoE) binning on the given features.
+    # Calculate the total number of events (High-risk) and non-events (Low-risk)
+    total_good = df[target].value_counts()[0]
+    total_bad = df[target].value_counts()[1]
 
-    Args:
-        df (pandas.DataFrame): The input dataframe containing the features and target variable.
+    # Create a dataframe to store the WoE and IV
+    woe_df = pd.DataFrame()
 
-    Returns:
-        pandas.DataFrame: A dataframe with the WoE-transformed features.
-    """
-    features = ['Recency', 'Frequency', 'Monetary', 'StdDev', 'OnTimePayments',
-                '<Recency_avg', '>Frequency_avg', '>Monetary_avg', '>StdDev_avg',
-                '>OnTimePayment_avg']
-    target = 'Classification'
+    # Group by the binned feature and calculate counts
+    grouped = df.groupby(feature + '_bin')[target].value_counts().unstack(fill_value=0)
+    grouped.columns = ['good', 'bad']
 
-    woe_df = df.copy()
+    # Add a small value to prevent division by zero
+    epsilon = 0.5
+    grouped['good'] = grouped['good'] + epsilon
+    grouped['bad'] = grouped['bad'] + epsilon
+
+    # Recalculate the total number of events (High-risk) and non-events (Low-risk)
+    total_good += epsilon * grouped.shape[0]
+    total_bad += epsilon * grouped.shape[0]
+
+    # Calculate the distribution of good and bad
+    grouped['good_dist'] = grouped['good'] / total_good
+    grouped['bad_dist'] = grouped['bad'] / total_bad
+
+    # Calculate WoE and IV
+    grouped['WoE'] = np.log(grouped['bad_dist'] / grouped['good_dist'])
+    grouped['IV'] = (grouped['bad_dist'] - grouped['good_dist']) * grouped['WoE']
+
+    # Append WoE and IV to the dataframe
+    woe_df = pd.concat([woe_df, grouped])
+
+    # Clean up temporary bin column
+    df.drop(columns=[feature + '_bin'], inplace=True)
+
+    return woe_df['WoE'], woe_df['IV'].sum()
+
+def woe_binning(df, features, target='Classification', bins=10):
+    woe_info = {}
+    iv_info = {}
 
     for feature in features:
-        woe_feature_col = f'{feature}_WOE'
-        woe_df[woe_feature_col] = 0
+        woe, iv = calculate_woe_iv(df, feature, target, bins)
+        df[f'{feature}_WoE'] = df[feature].map(woe)
+        woe_info[feature] = woe
+        iv_info[feature] = iv
 
-        unique_vals = df[feature].unique()
-
-        for val in unique_vals:
-            bad_rate = df.loc[(df[target] == 'High-risk') & (df[feature] == val), feature].count() / df.loc[
-                df[target] == 'High-risk', feature].count()
-            good_rate = df.loc[(df[target] == 'Low-risk') & (df[feature] == val), feature].count() / df.loc[
-                df[target] == 'Low-risk', feature].count()
-
-            if bad_rate > 0 and good_rate > 0:
-                woe = np.log(bad_rate / good_rate)
-            elif bad_rate == 0:
-                woe = -np.inf  # if no bad cases, WoE is negative infinity
-            else:
-                woe = np.inf  # if no good cases, WoE is positive infinity
-
-            woe_df.loc[df[feature] == val, woe_feature_col] = woe
-
-    return woe_df
-
-
-
+    return df, woe_info, iv_info
 
