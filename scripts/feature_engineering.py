@@ -8,7 +8,7 @@ import seaborn as sns
 from datetime import datetime
 import pytz
 from category_encoders.woe import WOEEncoder
-
+from scipy.stats import information_value
 
 
 # Set general aesthetics for the plots
@@ -123,7 +123,7 @@ def create_rfms_features(df, r_weight=0.4, f_weight=0.3, m_weight=0.2, s_weight=
     df['StdDev'] = df.groupby('AccountId')['Amount'].transform(lambda x: np.std(x, ddof=0))
 
     # Calculate the RFMS combined feature with custom weights
-    df['RFMS_combined'] = df['Recency'] * r_weight + df['Frequency'] * f_weight + df['Monetary'] * m_weight + df['StdDev'] * s_weight
+    #df['RFMS_score'] = df['Recency'] * r_weight + df['Frequency'] * f_weight + df['Monetary'] * m_weight + df['StdDev'] * s_weight
 
     # Optionally calculate credit utilization ratio and multiply it with Monetary value
     if 'credit_utilization_ratio' in df.columns:
@@ -382,3 +382,48 @@ def visualize_rfms(df):
     ax.set_zlim(z_min, z_max)
 
     plt.show()
+
+
+def woe_binning(df):
+    """
+    Performs Weight of Evidence (WoE) binning on the given features.
+
+    Args:
+        df (pandas.DataFrame): The input dataframe containing the features and target variable.
+
+    Returns:
+        pandas.DataFrame: A dataframe with the WoE-transformed features.
+    """
+    features = ['Recency', 'Frequency', 'Monetary', 'StdDev', 'OnTimePayments',
+                '<Recency_avg', '>Frequency_avg', '>Monetary_avg', '>StdDev_avg',
+                '>OnTimePayment_avg']
+    target = 'Classification'
+
+    woe_df = df.copy()
+
+    for feature in features:
+        woe_feature_col = f'{feature}_WOE'
+        woe_df[woe_feature_col] = 0
+
+        unique_vals = df[feature].unique()
+
+        for val in unique_vals:
+            bad_rate = df.loc[(df[target] == 'High-risk') & (df[feature] == val), feature].count() / df.loc[
+                df[target] == 'High-risk', feature].count()
+            good_rate = df.loc[(df[target] == 'Low-risk') & (df[feature] == val), feature].count() / df.loc[
+                df[target] == 'Low-risk', feature].count()
+
+            if bad_rate > 0 and good_rate > 0:
+                woe = np.log(bad_rate / good_rate)
+            elif bad_rate == 0:
+                woe = -np.inf  # if no bad cases, WoE is negative infinity
+            else:
+                woe = np.inf  # if no good cases, WoE is positive infinity
+
+            woe_df.loc[df[feature] == val, woe_feature_col] = woe
+
+    return woe_df
+
+
+
+
