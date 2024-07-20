@@ -199,9 +199,8 @@ def rfms_segmentation(df):
                                     + df.Frequency_Score.map(str) \
                                     + df.Monetary_Score.map(str)
 
-  #  df['RFMS_Score'] = df['Recency_Score'] * 100 + df['Frequency_Score'] * 10 + df['Monetary_Score'] * 1 + df['StdDev']
 
-    # Step 4: Segment Customers (High-risk and Low-risk)
+    # Segment Customers High-risk and Low-risk
     def segment_customers(r, f, m, sd):
         if r == 1 and sd > 2:
             return 'High-risk'
@@ -213,8 +212,8 @@ def rfms_segmentation(df):
     df['Segment'] = df.apply(
         lambda x: segment_customers(x['Recency_Score'], x['Frequency_Score'], x['Monetary_Score'], x['StdDev']), axis=1)
 
-
     return df
+
 
 def remove_outliers(df):
     """
