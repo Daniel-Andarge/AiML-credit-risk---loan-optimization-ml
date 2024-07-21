@@ -1,31 +1,47 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.impute import SimpleImputer
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 # Set general aesthetics for the plots
 sns.set_style("whitegrid")
 
 def create_aggregate_features(df):
     try:
+        # Convert TransactionStartTime to datetime
+        df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'], format='%Y-%m-%d %H:%M:%S%z')
+
         # Group transactions by customer
         grouped = df.groupby('CustomerId')
 
         # Calculate aggregate features
         aggregate_features = grouped['Amount'].agg(['sum', 'mean', 'count', 'std']).reset_index()
-        aggregate_features.columns = ['CustomerId', 'TotalTransactionAmount', 'AverageTransactionAmount', 'TransactionCount', 'StdTransactionAmount']
+        aggregate_features.columns = ['CustomerId', 'Monetary', 'AverageTransactionAmount', 'Frequency', 'StdTransactionAmount']
 
-        # Merge aggregate features with original dataframe
-        df = pd.merge(df, aggregate_features, on='CustomerId', how='left')
+        # Calculate Recency feature
+        recency_feature = (df.groupby('CustomerId')['TransactionStartTime'].max().max() - df.groupby('CustomerId')['TransactionStartTime'].max()).dt.days.reset_index()
+        recency_feature.columns = ['CustomerId', 'Recency']
 
+        # Merge recency and aggregate features with the original dataframe
+        df = df.merge(aggregate_features, on='CustomerId', how='left')
+        df = df.merge(recency_feature, on='CustomerId', how='left')
+        df = df.drop_duplicates(subset='CustomerId', keep='first')
+        df = df.dropna()
         return df
 
+    except KeyError as e:
+        print(f"Column not found: {e}")
+    except pd.errors.ParserError as e:
+        print(f"Parsing error: {e}")
     except Exception as e:
-        print("An error occurred:", e)
+        print(f"An error occurred: {e}")
+
+
 
 
 def extract_time_features(df):
@@ -44,175 +60,6 @@ def extract_time_features(df):
     except Exception as e:
         print("An error occurred:", e)
 
-
-def calculate_credit_utilization_ratio(df):
-    """
-    Calculates the customer's credit utilization ratio for BNPL transactions.
-
-    Args:
-        df (pandas.DataFrame): The BNPL transaction data, must include 'CustomerId', 'Amount'.
-
-    Returns:
-        pandas.DataFrame: The original DataFrame with added 'credit_utilization_ratio' column for each customer.
-    """
-
-    df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce')
-
-    # Calculate the total purchases and repayments for each customer
-    df['PurchaseAmount'] = df['Amount'].apply(lambda x: x if x > 0 else 0)
-    df['RepaymentAmount'] = df['Amount'].apply(lambda x: -x if x < 0 else 0)
-
-    # Aggregate purchases and repayments per customer
-    aggregated = df.groupby('CustomerId').agg(
-        TotalPurchases=('PurchaseAmount', 'sum'),
-        TotalRepayments=('RepaymentAmount', 'sum')
-    ).reset_index()
-
-    # Calculate the current balance and credit limit
-    aggregated['CurrentBalance'] = aggregated['TotalPurchases'] - aggregated['TotalRepayments']
-    aggregated['CreditLimit'] = aggregated['TotalPurchases']
-
-    # Calculate the credit utilization ratio
-    aggregated['CreditUtilizationRatio'] = aggregated['CurrentBalance'] / aggregated['CreditLimit']
-
-    # Replace infinite and NaN values with 0
-    aggregated['CreditUtilizationRatio'].replace([float('inf'), -float('inf')], 0, inplace=True)
-    aggregated['CreditUtilizationRatio'].fillna(0, inplace=True)
-
-    # Merge the result back to the original DataFrame
-    df = pd.merge(df, aggregated[['CustomerId', 'CreditUtilizationRatio']], on='CustomerId', how='left')
-
-    return df
-
-
-
-def create_rfms_features(df, r_weight=0.4, f_weight=0.3, m_weight=0.2, s_weight=0.1):
-    """
-    Creates RFMS features (Recency, Frequency, Monetary, and Standard Deviation) for customer transactions.
-    Includes the RFMS combined feature, which is the weighted sum of R, F, M, and S.
-
-    Args:
-        df (pandas.DataFrame): The transaction data, must include 'CustomerId', 'TransactionStartTime',
-                               'TransactionId', 'ChannelId', 'ProductId', 'Amount', 'credit_utilization_ratio',
-                               and 'OnTimePayments'.
-        r_weight (float): Weight for the Recency feature, default is 0.4.
-        f_weight (float): Weight for the Frequency feature, default is 0.3.
-        m_weight (float): Weight for the Monetary feature, default is 0.2.
-        s_weight (float): Weight for the Standard Deviation feature, default is 0.1.
-
-    Returns:
-        pandas.DataFrame: DataFrame with RFMS features, the RFMS combined feature, and the 'OnTimePayments' feature.
-    """
-    # Convert 'TransactionStartTime' to datetime format
-    df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'], format='%Y-%m-%d %H:%M:%S%z')
-
-    # Calculate Recency
-    max_date = df['TransactionStartTime'].max()
-    df['dif'] = max_date - df['TransactionStartTime']
-
-    # Group by CustomerId and calculate the minimum difference for recency
-    df_recency = df.groupby('CustomerId')['dif'].min().reset_index()
-
-    # Convert the dif to days to get the recency value
-    df_recency['Recency'] = df_recency['dif'].dt.days
-
-    # Merge recency back to the main dataframe
-    df = df.merge(df_recency[['CustomerId', 'Recency']], on='CustomerId')
-
-    # Drop the 'dif' column
-    df.drop(columns=['dif'], inplace=True)
-
-    # Calculate Frequency
-    df['Frequency'] = df.groupby('CustomerId')['TransactionId'].transform('count')
-
-    # Calculate Monetary Value
-    df['Monetary'] = df.groupby('CustomerId')['Amount'].transform('sum') / df['Frequency']
-
-    # Calculate Standard Deviation of Amounts
-    df['StdDev'] = df.groupby('CustomerId')['Amount'].transform(lambda x: np.std(x, ddof=0))
-
-    # Calculate the RFMS combined feature with custom weights
-    #df['RFMS_score'] = df['Recency'] * r_weight + df['Frequency'] * f_weight + df['Monetary'] * m_weight + df['StdDev'] * s_weight
-
-    # credit utilization ratio multiplied  with Monetary value
-    if 'credit_utilization_ratio' in df.columns:
-        df['Monetary'] *= df['credit_utilization_ratio']
-
-    # Dropping duplicates to get one row per customer with RFMS values
-    rfms_df = df.drop_duplicates(subset='CustomerId', keep='first')
-
-    return rfms_df
-
-
-import pandas as pd
-
-
-def rfms_segmentation(df):
-    """
-    Performs RFM segmentation on the input DataFrame.
-
-    Args:
-        df (pandas.DataFrame): DataFrame containing Recency, Frequency, Monetary, and StdDev features.
-
-    Returns:
-        pandas.DataFrame: Updated DataFrame with RFM segmentation features.
-    """
-    # Step 1: Choose the Suitable Scale
-    scale = 3
-
-    # Step 2: Define Intervals for Each Point
-    # Calculate quartiles for Recency, Frequency, and Monetary features
-    recency_q = df['Recency'].quantile([0.25, 0.50])
-    frequency_q = df['Frequency'].quantile([0.25, 0.50])
-    monetary_q = df['Monetary'].quantile([0.25, 0.50])
-
-    # Step 3: Assign Scores
-    def assign_recency_score(x):
-        if x <= recency_q[0.25]:
-            return scale
-        elif x <= recency_q[0.50]:
-            return scale - 1
-        else:
-            return 1
-
-    def assign_frequency_score(x):
-        if x <= frequency_q[0.25]:
-            return 1
-        elif x <= frequency_q[0.50]:
-            return scale - 1
-        else:
-            return scale
-
-    def assign_monetary_score(x):
-        if x <= monetary_q[0.25]:
-            return 1
-        elif x <= monetary_q[0.50]:
-            return scale - 1
-        else:
-            return scale
-
-    df['Recency_Score'] = df['Recency'].apply(assign_recency_score)
-    df['Frequency_Score'] = df['Frequency'].apply(assign_frequency_score)
-    df['Monetary_Score'] = df['Monetary'].apply(assign_monetary_score)
-
-    df['RFM_Score'] = df.Recency_Score.map(str) \
-                                    + df.Frequency_Score.map(str) \
-                                    + df.Monetary_Score.map(str)
-
-
-    # Segment Customers High-risk and Low-risk
-    def segment_customers(r, f, m, sd):
-        if r == 1 and sd > 2:
-            return 'High-risk'
-        elif r >= 2 and f >= 2 and m >= 2:
-            return 'Low-risk'
-        else:
-            return 'Low-risk'
-
-    df['Segment'] = df.apply(
-        lambda x: segment_customers(x['Recency_Score'], x['Frequency_Score'], x['Monetary_Score'], x['StdDev']), axis=1)
-
-    return df
 
 
 def remove_outliers(df):
@@ -409,37 +256,33 @@ def apply_classification(df):
 
 
 def visualize_rfms(df):
-    # Prepare the color mapping
-    color_map = {'Low-risk': 'green', 'High-risk': 'red'}
-    df['color'] = df['Classification'].map(color_map)
+    # Normalize the RFMS scores for clustering
+    scaler = StandardScaler()
+    rfms_scaled = scaler.fit_transform(df[['Recency_Score', 'Frequency_Score', 'Monetary_Score', 'Std_Score']])
 
-    # Create 3D scatter plot
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
+    # Perform K-means clustering to find natural groupings
+    kmeans = KMeans(n_clusters=2, random_state=42)  # Assuming we want to split into two groups: high and low
+    df['Cluster'] = kmeans.fit_predict(rfms_scaled)
 
-    # Plot the scatter points
-    ax.scatter(df['<Recency_avg'], df['>Monetary_avg'], df['>Frequency_avg'], c=df['color'], s=50, marker='o')
-
-    # Set axis labels
-    ax.set_xlabel('Recency')
-    ax.set_zlabel('Frequency')
-    ax.set_ylabel('Monetary')
-
-    # Set title
-    ax.set_title('RFMS 3D Visualization')
-
-    # Adjust axis ranges
-    x_min, x_max = min(df['<Recency_avg']) - 0.1 * abs(min(df['<Recency_avg'])), max(df['<Recency_avg']) + 0.1 * abs(
-        max(df['<Recency_avg']))
-    y_min, y_max = min(df['>Frequency_avg']) - 0.1 * abs(min(df['>Frequency_avg'])), max(
-        df['>Frequency_avg']) + 0.1 * abs(max(df['>Frequency_avg']))
-    z_min, z_max = min(df['>Monetary_avg']) - 0.1 * abs(min(df['>Monetary_avg'])), max(df['>Monetary_avg']) + 0.1 * abs(
-        max(df['>Monetary_avg']))
-
-    ax.set_xlim(x_min, x_max)
-    ax.set_ylim(y_min, y_max)
-    ax.set_zlim(z_min, z_max)
-
+    # Visualize clusters
+    sns.pairplot(df, vars=['Recency_Score', 'Frequency_Score', 'Monetary_Score', 'Std_Score'], hue='Cluster',
+                 palette='viridis')
     plt.show()
+
+    # Find cluster centers
+    centers = kmeans.cluster_centers_
+    centers_unscaled = scaler.inverse_transform(centers)
+
+    return centers_unscaled
+
+
+def apply_segment_based_on_clusters(df, centers):
+
+    high_risk_cluster = np.argmin(centers[:, :3].mean(axis=1))
+    df['Segment'] = np.where(df['Cluster'] == high_risk_cluster, 'High-risk', 'Low-risk')
+
+    return df.drop(columns=['Cluster'])
+
+
 
 
