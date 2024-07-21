@@ -7,6 +7,8 @@ import seaborn as sns
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
+from sklearn.preprocessing import KBinsDiscretizer
+
 # Set general aesthetics for the plots
 sns.set_style("whitegrid")
 
@@ -64,13 +66,13 @@ def extract_time_features(df):
 
 def standardize_features(df):
     """
-    Standardizes the numerical features in the input dataframe.
+    Standardizes the numerical features in the input dataframe and returns only the specified features.
 
     Parameters:
     df (pd.DataFrame): The input dataframe containing the data.
 
     Returns:
-    pd.DataFrame: The dataframe with the numerical features standardized.
+    pd.DataFrame: The dataframe with the specified features standardized.
     """
     try:
         data = df.copy()
@@ -82,12 +84,17 @@ def standardize_features(df):
         standard_scaler = StandardScaler()
         data[numerical_cols] = standard_scaler.fit_transform(data[numerical_cols])
 
-        return data
+        # Select the specified features
+        selected_features = ['Amount', 'Value', 'PricingStrategy',
+                             'FraudResult', 'Monetary', 'AverageTransactionAmount', 'Frequency',
+                             'StdTransactionAmount', 'Recency', 'TransactionHour', 'TransactionDay',
+                             'TransactionMonth', 'TransactionYear', 'Recency_Score',
+                             'Frequency_Score', 'Monetary_Score', 'Std_Score']
+        return data[selected_features]
 
     except Exception as e:
         print(f"Error occurred during standardization of numerical features: {e}")
-        return pd.DataFrame()  # Return an empty DataFrame on error
-
+        return pd.DataFrame()
 
 def remove_outliers(df):
     """
@@ -274,12 +281,8 @@ def visualize_rfms(df):
 
 
 
-        # Visualize clusters using all features
         # Visualize clusters
-        sns.pairplot(df, vars=['Amount', 'Value', 'PricingStrategy',
-        'FraudResult', 'Monetary', 'AverageTransactionAmount', 'Frequency',
-        'StdTransactionAmount', 'Recency', 'TransactionHour', 'TransactionDay',
-        'TransactionMonth', 'TransactionYear', 'Recency_Score',
+        sns.pairplot(df, vars=['Recency_Score',
         'Frequency_Score', 'Monetary_Score', 'Std_Score'], hue='Cluster',
                      palette='viridis')
         plt.show()
@@ -304,9 +307,6 @@ def apply_segment_based_on_clusters(df, centers):
     return df.drop(columns=['Cluster'])
 
 
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import KBinsDiscretizer
 
 
 def calculate_woe_iv(data, feature, target):
