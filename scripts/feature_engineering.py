@@ -6,95 +6,75 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import KBinsDiscretizer
-
+from datetime import datetime
+from sklearn.decomposition import PCA
 # Set general aesthetics for the plots
 sns.set_style("whitegrid")
 
-def create_aggregate_features(df):
-    try:
-        # Convert TransactionStartTime to datetime
-        df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'], format='%Y-%m-%d %H:%M:%S%z')
 
-        # Group transactions by customer
-        grouped = df.groupby('CustomerId')
-
-        # Calculate aggregate features
-        aggregate_features = grouped['Amount'].agg(['sum', 'mean', 'count', 'std']).reset_index()
-        aggregate_features.columns = ['CustomerId', 'Monetary', 'AverageTransactionAmount', 'Frequency', 'StdTransactionAmount']
-
-        # Calculate Recency feature
-        recency_feature = (df.groupby('CustomerId')['TransactionStartTime'].max().max() - df.groupby('CustomerId')['TransactionStartTime'].max()).dt.days.reset_index()
-        recency_feature.columns = ['CustomerId', 'Recency']
-
-        # Merge recency and aggregate features with the original dataframe
-        df = df.merge(aggregate_features, on='CustomerId', how='left')
-        df = df.merge(recency_feature, on='CustomerId', how='left')
-        df = df.drop_duplicates(subset='CustomerId', keep='first')
-        df = df.dropna()
-        return df
-
-    except KeyError as e:
-        print(f"Column not found: {e}")
-    except pd.errors.ParserError as e:
-        print(f"Parsing error: {e}")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-
-
-
-def extract_time_features(df):
-    try:
-        # Convert TransactionStartTime to datetime
-        df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'])
-
-        # Extract time-related features
-        df['TransactionHour'] = df['TransactionStartTime'].dt.hour
-        df['TransactionDay'] = df['TransactionStartTime'].dt.day
-        df['TransactionMonth'] = df['TransactionStartTime'].dt.month
-        df['TransactionYear'] = df['TransactionStartTime'].dt.year
-
-        df = df.drop('TransactionStartTime' , axis=1)
-        return df
-
-    except Exception as e:
-        print("An error occurred:", e)
-
-
-
-def standardize_features(df):
+def create_aggregate_features(data):
     """
-    Standardizes the numerical features in the input dataframe and returns only the specified features.
+    Process customer transaction data to calculate RFMS scores and classify users into good and bad based on clustering.
 
-    Parameters:
-    df (pd.DataFrame): The input dataframe containing the data.
+    Args:
+        file_path (str): Path to the CSV file containing transaction data.
 
     Returns:
-    pd.DataFrame: The dataframe with the specified features standardized.
+        pd.DataFrame: DataFrame with RFMS scores and user classification labels.
     """
-    try:
-        data = df.copy()
+    # Load the transaction data
 
-        # Identify numerical columns
-        numerical_cols = data.select_dtypes(include=['int32', 'int64', 'float64']).columns
 
-        # Standardize numerical features
-        standard_scaler = StandardScaler()
-        data[numerical_cols] = standard_scaler.fit_transform(data[numerical_cols])
+    # Ensure the TransactionStartTime is in datetime format
+    data['TransactionStartTime'] = pd.to_datetime(data['TransactionStartTime'], format='%Y-%m-%d %H:%M:%S%z')
 
-        # Select the specified features
-        selected_features = ['Amount', 'Value', 'PricingStrategy',
-                             'FraudResult', 'Monetary', 'AverageTransactionAmount', 'Frequency',
-                             'StdTransactionAmount', 'Recency', 'TransactionHour', 'TransactionDay',
-                             'TransactionMonth', 'TransactionYear', 'Recency_Score',
-                             'Frequency_Score', 'Monetary_Score', 'Std_Score']
-        return data[selected_features]
+    # Extract temporal features
+    data['TransactionHour'] = data['TransactionStartTime'].dt.hour
+    data['TransactionDay'] = data['TransactionStartTime'].dt.day
+    data['TransactionMonth'] = data['TransactionStartTime'].dt.month
+    data['TransactionYear'] = data['TransactionStartTime'].dt.year
 
-    except Exception as e:
-        print(f"Error occurred during standardization of numerical features: {e}")
-        return pd.DataFrame()
+    # Ensure current time is timezone-aware
+    now = datetime.now(data['TransactionStartTime'].dt.tz)
+
+    # Aggregate transaction data by CustomerId
+    customer_data = data.groupby('CustomerId').agg({
+        'TransactionStartTime': lambda x: (now - x.max()).days,
+        'TransactionId': 'count',
+        'Amount': ['sum', 'mean', 'std'],
+        'TransactionHour': 'mean',
+        'TransactionDay': 'mean',
+        'TransactionMonth': 'mean',
+        'TransactionYear': 'mean'
+    }).reset_index()
+
+
+    customer_data.columns = ['CustomerId', 'Recency', 'TransactionCount', 'TotalTransactionAmount', 'AverageTransactionAmount', 'StdTransactionAmount', 'AvgTransactionHour', 'AvgTransactionDay', 'AvgTransactionMonth', 'AvgTransactionYear']
+
+    # Normalize the scores (simple min-max normalization)
+    customer_data['R_norm'] = 1 - (customer_data['Recency'] - customer_data['Recency'].min()) / (customer_data['Recency'].max() - customer_data['Recency'].min())
+    customer_data['F_norm'] = (customer_data['TransactionCount'] - customer_data['TransactionCount'].min()) / (customer_data['TransactionCount'].max() - customer_data['TransactionCount'].min())
+    customer_data['M_norm'] = (customer_data['TotalTransactionAmount'] - customer_data['TotalTransactionAmount'].min()) / (customer_data['TotalTransactionAmount'].max() - customer_data['TotalTransactionAmount'].min())
+    customer_data['S_norm'] = (customer_data['StdTransactionAmount'] - customer_data['StdTransactionAmount'].min()) / (customer_data['StdTransactionAmount'].max() - customer_data['StdTransactionAmount'].min())
+    customer_data['Hour_norm'] = (customer_data['AvgTransactionHour'] - customer_data['AvgTransactionHour'].min()) / (customer_data['AvgTransactionHour'].max() - customer_data['AvgTransactionHour'].min())
+    customer_data['Day_norm'] = (customer_data['AvgTransactionDay'] - customer_data['AvgTransactionDay'].min()) / (customer_data['AvgTransactionDay'].max() - customer_data['AvgTransactionDay'].min())
+    customer_data['Month_norm'] = (customer_data['AvgTransactionMonth'] - customer_data['AvgTransactionMonth'].min()) / (customer_data['AvgTransactionMonth'].max() - customer_data['AvgTransactionMonth'].min())
+    customer_data['Year_norm'] = (customer_data['AvgTransactionYear'] - customer_data['AvgTransactionYear'].min()) / (customer_data['AvgTransactionYear'].max() - customer_data['AvgTransactionYear'].min())
+
+    # Calculate the RFMS score
+    weights = {'R': 0.25, 'F': 0.25, 'M': 0.25, 'S': 0.25}
+    customer_data['RFMS_Score'] = (
+            weights['R'] * customer_data['R_norm'] +
+            weights['F'] * customer_data['F_norm'] +
+            weights['M'] * customer_data['M_norm'] +
+            weights['S'] * customer_data['S_norm']
+    )
+
+    df = customer_data.dropna()
+    return df
+
 
 def remove_outliers(df):
     """
@@ -122,7 +102,6 @@ def remove_outliers(df):
         # Update the mask to filter out rows containing outliers
         mask = mask & ~((df[column] < lower_bound) | (df[column] > upper_bound))
 
-    # Filter the DataFrame to remove outliers
     df_no_outliers = df[mask]
     return df_no_outliers
 
@@ -152,47 +131,25 @@ def encode_categorical_variables(df):
         return None
 
 
-def handle_missing_values(df):
-    """
-    Handles missing values in the input dataframe using imputation or removal.
-
-    Parameters:
-    df (pandas.DataFrame): The input dataframe containing the data.
-
-    Returns:
-    pandas.DataFrame: The dataframe with missing values handled.
-    """
-    try:
-        # Copy the dataframe to avoid modifying the original
-        data = df.copy()
-
-        # Impute missing values with mean
-        imputer = SimpleImputer(strategy='mean')
-        numerical_cols = data.select_dtypes(include=['int32', 'int64', 'float64']).columns
-        data[numerical_cols] = imputer.fit_transform(data[numerical_cols])
-
-        # Remove rows with missing values if they are few
-        if data.isnull().sum().sum() / len(data) < 0.05:
-            data = data.dropna()
-
-        return data
-    except Exception as e:
-        print(f"Error occurred during handling missing values: {e}")
-        return None
-
 
 # Outliers
-
 def detect_rfms_outliers(data):
     # Select only the numeric features
-    numeric_cols = data.select_dtypes(include=['int64', 'int32','float64']).columns
+    numeric_cols = data.select_dtypes(include=['int64', 'int32', 'float64']).columns
     numeric_data = data[numeric_cols]
 
-    fig, ax = plt.subplots(figsize=(12, 6))
-    sns.boxplot(data=numeric_data, orient='v', ax=ax)
-    ax.set_title('Box Plot for Numeric Features')
-    ax.set_xlabel('Feature')
-    ax.set_ylabel('Range')
+    fig, axes = plt.subplots(nrows=len(numeric_cols) // 3 + 1, ncols=3, figsize=(18, 6 * len(numeric_cols) // 3 + 6))
+
+    for i, col in enumerate(numeric_cols):
+        row = i // 3
+        col_idx = i % 3
+
+        sns.boxplot(x=col, data=numeric_data, ax=axes[row, col_idx])
+        axes[row, col_idx].set_title(f'Box Plot for {col}')
+        axes[row, col_idx].set_xlabel(col)
+        axes[row, col_idx].set_ylabel('Range')
+
+    plt.tight_layout()
 
     # Get the outlier indices for each numeric feature
     outlier_indices = {}
@@ -207,106 +164,51 @@ def detect_rfms_outliers(data):
     return outlier_indices
 
 
-def rfms_segmentation(df):
-    """
-    Performs RFM segmentation on the input DataFrame.
-
-    Args:
-        df (pandas.DataFrame): DataFrame containing Recency, Frequency, Monetary, and StdDev features.
-
-    Returns:
-        pandas.DataFrame: Updated DataFrame with RFM segmentation features.
-    """
-    # Define Scale
-    scale = 3
-
-    recency_q = df['Recency'].quantile([0.25, 0.50])
-    frequency_q = df['Frequency'].quantile([0.25, 0.50])
-    monetary_q = df['Monetary'].quantile([0.25, 0.50])
-
-    # Step 3: Assign Scores
-    def assign_recency_score(x):
-        if x <= recency_q[0.25]:
-            return scale
-        elif x <= recency_q[0.50]:
-            return scale - 1
-        else:
-            return 1
-
-    def assign_frequency_score(x):
-        if x <= frequency_q[0.25]:
-            return 1
-        elif x <= frequency_q[0.50]:
-            return scale - 1
-        else:
-            return scale
-
-    def assign_monetary_score(x):
-        if x <= monetary_q[0.25]:
-            return 1
-        elif x <= monetary_q[0.50]:
-            return scale - 1
-        else:
-            return scale
-
-    df['Recency_Score'] = df['Recency'].apply(assign_recency_score)
-    df['Frequency_Score'] = df['Frequency'].apply(assign_frequency_score)
-    df['Monetary_Score'] = df['Monetary'].apply(assign_monetary_score)
-    df['Std_Score'] = df['StdTransactionAmount'].apply(assign_recency_score)
-
-    df['RFM_Score'] = df.Recency_Score.map(str) \
-                                    + df.Frequency_Score.map(str) \
-                                    + df.Monetary_Score.map(str) \
-                                    + df.Std_Score.map(str)
-
-    return df
-
-
-
-
 def visualize_rfms(df):
+    # Scatter plot of RFMS scores
+    plt.figure(figsize=(10, 6))
+    sns.scatterplot(data=df, x='R_norm', y='F_norm', hue='RFMS_Score', palette='viridis')
+    plt.title('RFMS Score Distribution')
+    plt.xlabel('Recency (Normalized)')
+    plt.ylabel('Frequency (Normalized)')
+    plt.show()
+
+    # Fit K-Means clustering
+    kmeans = KMeans(n_clusters=2)
+    df['Cluster'] = kmeans.fit_predict(df[['R_norm', 'F_norm', 'M_norm', 'S_norm']])
+
+    # Assign labels based on clusters
+    cluster_centers = kmeans.cluster_centers_
+    return cluster_centers
+
+
+def apply_segment_based_on_clusters(df, cluster_centers):
     """
-    Performs K-means clustering on the RFMS scores and visualizes the results.
+    Assign labels to clusters based on the highest RFMS score cluster.
 
     Parameters:
-    df (pd.DataFrame): The input dataframe containing RFMS scores.
+    df (pd.DataFrame): DataFrame containing cluster assignments.
+    cluster_centers (np.ndarray): Array of cluster center coordinates.
 
     Returns:
-    np.ndarray: The cluster centers.
+    pd.DataFrame: DataFrame with an additional 'Classification' and 'Binary_class' columns.
     """
-    try:
-        # Perform K-means clustering
-        kmeans = KMeans(n_clusters=2, random_state=42)
-        df['Cluster'] = kmeans.fit_predict(df)
+    if 'Cluster' not in df.columns:
+        raise ValueError("The dataframe must contain a 'Cluster' column with cluster assignments.")
 
+    if cluster_centers.shape[1] == 0:
+        raise ValueError("Cluster centers array must have at least one column.")
 
+    # Determine the index of the cluster with the highest value in the last column (RFMS score)
+    high_cluster = np.argmax(cluster_centers[:, -1])
 
-        # Visualize clusters
-        sns.pairplot(df, vars=['Recency_Score',
-        'Frequency_Score', 'Monetary_Score', 'Std_Score'], hue='Cluster',
-                     palette='viridis')
-        plt.show()
+    # Assign labels based on the cluster assignment
+    df['Classification'] = df['Cluster'].apply(lambda x: 'Low-risk' if x == high_cluster else 'High-risk')
 
-        # Find cluster centers
-        centers = kmeans.cluster_centers_
+    # Create the Binary_class feature
+    df['Binary_class'] = df['Classification'].apply(lambda x: 1 if x == 'High-risk' else 0)
 
-        return centers
-
-    except Exception as e:
-        print(f"Error occurred during visualization and clustering of RFMS scores: {e}")
-        return None
-
-
-
-
-def apply_segment_based_on_clusters(df, centers):
-
-    high_risk_cluster = np.argmin(centers[:, :3].mean(axis=1))
-    df['Segment'] = np.where(df['Cluster'] == high_risk_cluster, 'High-risk', 'Low-risk')
-
-    return df.drop(columns=['Cluster'])
-
-
+    return df
 
 
 def calculate_woe_iv(data, feature, target):
@@ -323,13 +225,13 @@ def calculate_woe_iv(data, feature, target):
     """
     eps = 1e-10  # To avoid division by zero
     # Calculate the total number of 'High-risk' and 'Low-risk'
-    total_good = np.sum(data[target] == 'Low-risk')
-    total_bad = np.sum(data[target] == 'High-risk')
+    total_good = np.sum(data[target] == 0)
+    total_bad = np.sum(data[target] == 1)
 
     # Group by feature bins and calculate WoE and IV
     grouped = data.groupby(feature)[target].value_counts(normalize=False).unstack().fillna(0)
-    grouped['good'] = grouped['Low-risk']
-    grouped['bad'] = grouped['High-risk']
+    grouped['good'] = grouped[0]
+    grouped['bad'] = grouped[1]
 
     grouped['good_dist'] = grouped['good'] / total_good
     grouped['bad_dist'] = grouped['bad'] / total_bad
@@ -342,7 +244,7 @@ def calculate_woe_iv(data, feature, target):
     return iv
 
 
-def woe_binning(data, target='Segment', n_bins=10):
+def woe_binning(data, target='Binary_class', n_bins=5):
     """
     Perform WoE binning on all features of the DataFrame.
 
@@ -374,5 +276,24 @@ def woe_binning(data, target='Segment', n_bins=10):
     return binned_data, woe_iv_dict
 
 
+def Visualize_clusters(customer_data):
 
+    features = customer_data[
+        ['R_norm', 'F_norm', 'M_norm', 'S_norm', 'Hour_norm', 'Day_norm', 'Month_norm', 'Year_norm']]
 
+    # Scale features for clustering
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features)
+
+    pca = PCA(n_components=2)
+    principal_components = pca.fit_transform(features_scaled)
+    customer_data['PC1'] = principal_components[:, 0]
+    customer_data['PC2'] = principal_components[:, 1]
+
+    plt.figure(figsize=(10, 6))
+    sns.scatterplot(data=customer_data, x='PC1', y='PC2', hue='Classification', palette='viridis')
+    plt.title('RFMS Score Clusters with Temporal Features')
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.legend(title='Classification')
+    plt.show()
