@@ -1,53 +1,46 @@
-def rfms_segmentation(df):
-    """
-    Performs RFM segmentation on the input DataFrame.
+import pandas as pd
+from datetime import datetime
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
-    Args:
-        df (pandas.DataFrame): DataFrame containing Recency, Frequency, Monetary, and StdDev features.
 
-    Returns:
-        pandas.DataFrame: Updated DataFrame with RFM segmentation features.
-    """
-    # Define Scale
-    scale = 3
+    # Combine all normalized features
+    features = customer_data[['R_norm', 'F_norm', 'M_norm', 'S_norm', 'Hour_norm', 'Day_norm', 'Month_norm', 'Year_norm']]
 
-    recency_q = df['Recency'].quantile([0.25, 0.50])
-    frequency_q = df['Frequency'].quantile([0.25, 0.50])
-    monetary_q = df['Monetary'].quantile([0.25, 0.50])
+    # Scale features for clustering
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features)
 
-    # Step 3: Assign Scores
-    def assign_recency_score(x):
-        if x <= recency_q[0.25]:
-            return scale
-        elif x <= recency_q[0.50]:
-            return scale - 1
-        else:
-            return 1
+    # Fit K-Means clustering
+    kmeans = KMeans(n_clusters=2)
+    customer_data['Cluster'] = kmeans.fit_predict(features_scaled)
 
-    def assign_frequency_score(x):
-        if x <= frequency_q[0.25]:
-            return 1
-        elif x <= frequency_q[0.50]:
-            return scale - 1
-        else:
-            return scale
+    # Assign labels based on clusters
+    cluster_centers = kmeans.cluster_centers_
+    high_cluster = cluster_centers[:, -1].argmax()  # Using the last column for deciding high cluster
+    customer_data['Label'] = customer_data['Cluster'].apply(lambda x: 'good' if x == high_cluster else 'bad')
 
-    def assign_monetary_score(x):
-        if x <= monetary_q[0.25]:
-            return 1
-        elif x <= monetary_q[0.50]:
-            return scale - 1
-        else:
-            return scale
+    # Visualize the clusters using two principal components for simplicity
+    from sklearn.decomposition import PCA
 
-    df['Recency_Score'] = df['Recency'].apply(assign_recency_score)
-    df['Frequency_Score'] = df['Frequency'].apply(assign_frequency_score)
-    df['Monetary_Score'] = df['Monetary'].apply(assign_monetary_score)
-    df['Std_Score'] = df['StdTransactionAmount'].apply(assign_recency_score)
+    pca = PCA(n_components=2)
+    principal_components = pca.fit_transform(features_scaled)
+    customer_data['PC1'] = principal_components[:, 0]
+    customer_data['PC2'] = principal_components[:, 1]
 
-    df['RFM_Score'] = df.Recency_Score.map(str) \
-                                    + df.Frequency_Score.map(str) \
-                                    + df.Monetary_Score.map(str) \
-                                    + df.Std_Score.map(str)
+    plt.figure(figsize=(10, 6))
+    sns.scatterplot(data=customer_data, x='PC1', y='PC2', hue='Label', palette='viridis')
+    plt.title('RFMS Score Clusters with Temporal Features')
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.legend(title='Label')
+    plt.show()
 
-    return df
+    return customer_data
+
+# Example usage
+file_path = 'transactions.csv'
+result_df = process_customer_data(file_path)
+print(result_df)
