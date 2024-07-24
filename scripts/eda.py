@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
+from sklearn.preprocessing import LabelEncoder
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import logging
@@ -344,5 +345,56 @@ def detect_outliers(df):
         logging.error(f"An error occurred during outlier detection: {str(e)}")
 
 
+def remove_outliers(df):
+    """
+    Removes outliers from a dfFrame based on the IQR method.
+
+    Parameters:
+    df (pd.dfFrame): Input dfFrame from which to remove outliers.
+
+    Returns:
+    pd.dfFrame: dfFrame with outliers removed.
+    """
+    # Select numerical features
+    numerical_features = df.select_dtypes(include=[np.number])
+
+    # Initialize a boolean mask to keep track of outliers
+    mask = pd.Series([True] * len(df))
+
+    for column in numerical_features.columns:
+        q1 = df[column].quantile(0.25)
+        q3 = df[column].quantile(0.75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+
+        # Update the mask to filter out rows containing outliers
+        mask = mask & ~((df[column] < lower_bound) | (df[column] > upper_bound))
+
+    df_no_outliers = df[mask]
+    return df_no_outliers
 
 
+def encode_categorical_variables(df):
+    """
+    Encodes categorical variables in the input dfframe using Label Encoding.
+
+    Parameters:
+    df (pandas.dfFrame): The input dfframe containing the df.
+
+    Returns:
+    pandas.dfFrame: The dfframe with the categorical variables encoded and converted to numerical type.
+    """
+    try:
+        # Copy the dfframe to avoid modifying the original
+        df = df.copy()
+
+        # Label Encoding
+        label_encoder = LabelEncoder()
+        for col in df.select_dtypes(include=['object']).columns:
+            df[col] = label_encoder.fit_transform(df[col])
+
+        return df
+    except Exception as e:
+        print(f"Error occurred during encoding categorical variables: {e}")
+        return None

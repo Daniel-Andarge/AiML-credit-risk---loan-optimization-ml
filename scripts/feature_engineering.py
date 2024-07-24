@@ -1,47 +1,40 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
-from sklearn.impute import SimpleImputer
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import KBinsDiscretizer
 from datetime import datetime
 from sklearn.decomposition import PCA
+
 # Set general aesthetics for the plots
 sns.set_style("whitegrid")
 
 
-def create_aggregate_features(data):
-    """
-    Process customer transaction data to calculate RFMS scores and classify users into good and bad based on clustering.
 
-    Args:
-        file_path (str): Path to the CSV file containing transaction data.
+def create_aggregate_features(df):
+    """
+    Create aggregate features from a transaction dfset.
+
+    Parameters:
+    df (pandas.dfFrame): The input transaction dfset.
 
     Returns:
-        pd.DataFrame: DataFrame with RFMS scores and user classification labels.
+    pandas.dfFrame: A dfFrame with aggregated features for each customer.
     """
-    # Load the transaction data
-
-
-    # Ensure the TransactionStartTime is in datetime format
-    data['TransactionStartTime'] = pd.to_datetime(data['TransactionStartTime'], format='%Y-%m-%d %H:%M:%S%z')
+    # datetime format
+    df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'], format='%Y-%m-%d %H:%M:%S%z')
 
     # Extract temporal features
-    data['TransactionHour'] = data['TransactionStartTime'].dt.hour
-    data['TransactionDay'] = data['TransactionStartTime'].dt.day
-    data['TransactionMonth'] = data['TransactionStartTime'].dt.month
-    data['TransactionYear'] = data['TransactionStartTime'].dt.year
+    df['TransactionHour'] = df['TransactionStartTime'].dt.hour
+    df['TransactionDay'] = df['TransactionStartTime'].dt.day
+    df['TransactionMonth'] = df['TransactionStartTime'].dt.month
+    df['TransactionYear'] = df['TransactionStartTime'].dt.year
 
-    # Ensure current time is timezone-aware
-    now = datetime.now(data['TransactionStartTime'].dt.tz)
-
-    # Aggregate transaction data by CustomerId
-    customer_data = data.groupby('CustomerId').agg({
-        'TransactionStartTime': lambda x: (now - x.max()).days,
+    # Aggregate transaction df by CustomerId
+    customer_df = df.groupby('CustomerId').agg({
+        'TransactionStartTime': lambda x: (df['TransactionStartTime'].max() - x.max()).days,
         'TransactionId': 'count',
         'Amount': ['sum', 'mean', 'std'],
         'TransactionHour': 'mean',
@@ -50,250 +43,156 @@ def create_aggregate_features(data):
         'TransactionYear': 'mean'
     }).reset_index()
 
+    # Rename the columns
+    customer_df.columns = ['CustomerId', 'Recency', 'Frequency', 'Monetary', 'MeanAmount',
+                             'StdAmount', 'AvgTransactionHour', 'AvgTransactionDay', 'AvgTransactionMonth',
+                             'AvgTransactionYear']
 
-    customer_data.columns = ['CustomerId', 'Recency', 'TransactionCount', 'TotalTransactionAmount', 'AverageTransactionAmount', 'StdTransactionAmount', 'AvgTransactionHour', 'AvgTransactionDay', 'AvgTransactionMonth', 'AvgTransactionYear']
+    df = customer_df.dropna()
 
-    # Normalize the scores (simple min-max normalization)
-    customer_data['R_norm'] = 1 - (customer_data['Recency'] - customer_data['Recency'].min()) / (customer_data['Recency'].max() - customer_data['Recency'].min())
-    customer_data['F_norm'] = (customer_data['TransactionCount'] - customer_data['TransactionCount'].min()) / (customer_data['TransactionCount'].max() - customer_data['TransactionCount'].min())
-    customer_data['M_norm'] = (customer_data['TotalTransactionAmount'] - customer_data['TotalTransactionAmount'].min()) / (customer_data['TotalTransactionAmount'].max() - customer_data['TotalTransactionAmount'].min())
-    customer_data['S_norm'] = (customer_data['StdTransactionAmount'] - customer_data['StdTransactionAmount'].min()) / (customer_data['StdTransactionAmount'].max() - customer_data['StdTransactionAmount'].min())
-    customer_data['Hour_norm'] = (customer_data['AvgTransactionHour'] - customer_data['AvgTransactionHour'].min()) / (customer_data['AvgTransactionHour'].max() - customer_data['AvgTransactionHour'].min())
-    customer_data['Day_norm'] = (customer_data['AvgTransactionDay'] - customer_data['AvgTransactionDay'].min()) / (customer_data['AvgTransactionDay'].max() - customer_data['AvgTransactionDay'].min())
-    customer_data['Month_norm'] = (customer_data['AvgTransactionMonth'] - customer_data['AvgTransactionMonth'].min()) / (customer_data['AvgTransactionMonth'].max() - customer_data['AvgTransactionMonth'].min())
-    customer_data['Year_norm'] = (customer_data['AvgTransactionYear'] - customer_data['AvgTransactionYear'].min()) / (customer_data['AvgTransactionYear'].max() - customer_data['AvgTransactionYear'].min())
+    return df
 
-    # Calculate the RFMS score
-    weights = {'R': 0.25, 'F': 0.25, 'M': 0.25, 'S': 0.25}
-    customer_data['RFMS_Score'] = (
-            weights['R'] * customer_data['R_norm'] +
-            weights['F'] * customer_data['F_norm'] +
-            weights['M'] * customer_data['M_norm'] +
-            weights['S'] * customer_data['S_norm']
+
+
+def calculate_rfms_score(df):
+    # Define the weights for each feature
+    recency_weight = 0.4
+    frequency_weight = 0.3
+    monetary_weight = 0.2
+    stdamount_weight = 0.05
+    meanamount_weight = 0.05
+    avgtransactionhour_weight = 0.1
+    avgtransactionday_weight = 0.1
+    avgtransactionmonth_weight = 0.1
+    avgtransactionyear_weight = 0.1
+
+    # Calculate the normalized RFMS score
+    df['RFMS_Score'] = (
+        df['Recency'].rank(method='dense', ascending=True) / len(df) * recency_weight + +
+        df['Frequency'].rank(method='dense', ascending=True) / len(df) * frequency_weight +
+        df['Monetary'].rank(method='dense', ascending=True) / len(df) * monetary_weight +
+        df['StdAmount'].rank(method='dense', ascending=True) / len(df) * stdamount_weight +
+        df['MeanAmount'].rank(method='dense', ascending=True) / len(df) * meanamount_weight +
+        df['AvgTransactionHour'].rank(method='dense', ascending=True) / len(df) * avgtransactionhour_weight +
+        df['AvgTransactionDay'].rank(method='dense', ascending=True) / len(df) * avgtransactionday_weight +
+        df['AvgTransactionMonth'].rank(method='dense', ascending=True) / len(df) * avgtransactionmonth_weight +
+        df['AvgTransactionYear'].rank(method='dense', ascending=True) / len(df) * avgtransactionyear_weight
     )
 
-    df = customer_data.dropna()
     return df
 
 
-def remove_outliers(df):
-    """
-    Removes outliers from a DataFrame based on the IQR method.
+def visualize_rfms_space(df):
+    # Extract the RFMS_Score
+    rfms_score = df['RFMS_Score']
 
-    Parameters:
-    df (pd.DataFrame): Input DataFrame from which to remove outliers.
+    # Create the RFMS scatter plot
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.scatter(range(len(rfms_score)), rfms_score, c=rfms_score, cmap='viridis', alpha=0.5)
+    ax.set_xlabel('User Index')
+    ax.set_ylabel('RFMS Score')
+    ax.set_title('RFMS Space Visualization')
+    cbar = plt.colorbar(ax.collections[0], ax=ax)
+    cbar.set_label('RFMS Score')
 
-    Returns:
-    pd.DataFrame: DataFrame with outliers removed.
-    """
-    # Select numerical features
-    numerical_features = df.select_dtypes(include=[np.number])
+    # Defining  the boundary between high and low RFMS scores
+    rfms_threshold = np.percentile(rfms_score, 60)
+    ax.axhline(y=rfms_threshold, color='r', linestyle='--', label='RFMS Threshold')
+    ax.legend()
 
-    # Initialize a boolean mask to keep track of outliers
-    mask = pd.Series([True] * len(df))
-
-    for column in numerical_features.columns:
-        q1 = df[column].quantile(0.25)
-        q3 = df[column].quantile(0.75)
-        iqr = q3 - q1
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
-
-        # Update the mask to filter out rows containing outliers
-        mask = mask & ~((df[column] < lower_bound) | (df[column] > upper_bound))
-
-    df_no_outliers = df[mask]
-    return df_no_outliers
-
-
-def encode_categorical_variables(df):
-    """
-    Encodes categorical variables in the input dataframe using Label Encoding.
-
-    Parameters:
-    df (pandas.DataFrame): The input dataframe containing the data.
-
-    Returns:
-    pandas.DataFrame: The dataframe with the categorical variables encoded and converted to numerical type.
-    """
-    try:
-        # Copy the dataframe to avoid modifying the original
-        data = df.copy()
-
-        # Label Encoding
-        label_encoder = LabelEncoder()
-        for col in data.select_dtypes(include=['object']).columns:
-            data[col] = label_encoder.fit_transform(data[col])
-
-        return data
-    except Exception as e:
-        print(f"Error occurred during encoding categorical variables: {e}")
-        return None
-
-
-
-# Outliers
-def detect_rfms_outliers(data):
-    # Select only the numeric features
-    numeric_cols = data.select_dtypes(include=['int64', 'int32', 'float64']).columns
-    numeric_data = data[numeric_cols]
-
-    fig, axes = plt.subplots(nrows=len(numeric_cols) // 3 + 1, ncols=3, figsize=(18, 6 * len(numeric_cols) // 3 + 6))
-
-    for i, col in enumerate(numeric_cols):
-        row = i // 3
-        col_idx = i % 3
-
-        sns.boxplot(x=col, data=numeric_data, ax=axes[row, col_idx])
-        axes[row, col_idx].set_title(f'Box Plot for {col}')
-        axes[row, col_idx].set_xlabel(col)
-        axes[row, col_idx].set_ylabel('Range')
-
-    plt.tight_layout()
-
-    # Get the outlier indices for each numeric feature
-    outlier_indices = {}
-    for col in numeric_cols:
-        q1 = numeric_data[col].quantile(0.25)
-        q3 = numeric_data[col].quantile(0.75)
-        iqr = q3 - q1
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
-        outlier_indices[col] = numeric_data[(numeric_data[col] < lower_bound) | (numeric_data[col] > upper_bound)].index
-
-    return outlier_indices
-
-
-def visualize_rfms(df):
-    # Scatter plot of RFMS scores
-    plt.figure(figsize=(10, 6))
-    sns.scatterplot(data=df, x='R_norm', y='F_norm', hue='RFMS_Score', palette='viridis')
-    plt.title('RFMS Score Distribution')
-    plt.xlabel('Recency (Normalized)')
-    plt.ylabel('Frequency (Normalized)')
     plt.show()
 
-    # Fit K-Means clustering
-    kmeans = KMeans(n_clusters=2)
-    df['Cluster'] = kmeans.fit_predict(df[['R_norm', 'F_norm', 'M_norm', 'S_norm']])
-
-    # Assign labels based on clusters
-    cluster_centers = kmeans.cluster_centers_
-    return cluster_centers
+    return  rfms_threshold
 
 
-def apply_segment_based_on_clusters(df, cluster_centers):
-    """
-    Assign labels to clusters based on the highest RFMS score cluster.
-
-    Parameters:
-    df (pd.DataFrame): DataFrame containing cluster assignments.
-    cluster_centers (np.ndarray): Array of cluster center coordinates.
-
-    Returns:
-    pd.DataFrame: DataFrame with an additional 'Classification' and 'Binary_class' columns.
-    """
-    if 'Cluster' not in df.columns:
-        raise ValueError("The dataframe must contain a 'Cluster' column with cluster assignments.")
-
-    if cluster_centers.shape[1] == 0:
-        raise ValueError("Cluster centers array must have at least one column.")
-
-    # Determine the index of the cluster with the highest value in the last column (RFMS score)
-    high_cluster = np.argmax(cluster_centers[:, -1])
-
-    # Assign labels based on the cluster assignment
-    df['Classification'] = df['Cluster'].apply(lambda x: 'Low-risk' if x == high_cluster else 'High-risk')
-
-    # Create the Binary_class feature
-    df['Binary_class'] = df['Classification'].apply(lambda x: 1 if x == 'High-risk' else 0)
-
+def classify_users_by_rfms(df, rfms_threshold):
+    df['Classification'] = 'High-risk'
+    df.loc[df['RFMS_Score'] >= rfms_threshold, 'Classification'] = 'Low-risk'
+    df['Binary_class'] = np.where(df['Classification'] == 'Low-risk', 0, 1)
     return df
 
 
-def calculate_woe_iv(data, feature, target):
+import numpy as np
+import pandas as pd
+
+
+def calculate_woe_and_bin_features(data, features_to_bin, target, num_bins=5):
     """
-    Calculate Weight of Evidence (WoE) and Information Value (IV) for a given feature.
+    Create binned features and calculate Weight of Evidence (WoE) for specified features in the input DataFrame.
 
     Parameters:
-    - data: pandas DataFrame
-    - feature: the feature column name
-    - target: the target column name
+    data (pd.DataFrame): The input DataFrame containing the features and target column.
+    features_to_bin (list): A list of feature names to be binned.
+    target (str): The name of the target column (binary class).
+    num_bins (int): The number of bins to create for the features (default is 5).
 
     Returns:
-    - iv: Information Value (IV) for the feature
+    pd.DataFrame: The input DataFrame with new columns for binned features and their corresponding WoE values.
     """
-    eps = 1e-10  # To avoid division by zero
-    # Calculate the total number of 'High-risk' and 'Low-risk'
-    total_good = np.sum(data[target] == 0)
-    total_bad = np.sum(data[target] == 1)
 
-    # Group by feature bins and calculate WoE and IV
-    grouped = data.groupby(feature)[target].value_counts(normalize=False).unstack().fillna(0)
-    grouped['good'] = grouped[0]
-    grouped['bad'] = grouped[1]
+    def woe_binning(df, feature, target):
+        """
+        Calculate the Weight of Evidence (WoE) for a given feature.
 
-    grouped['good_dist'] = grouped['good'] / total_good
-    grouped['bad_dist'] = grouped['bad'] / total_bad
+        Parameters:
+        df (pd.DataFrame): The input dataframe containing the feature and target columns.
+        feature (str): The name of the feature column for which WoE is to be calculated.
+        target (str): The name of the target column (binary class).
 
-    grouped['woe'] = np.log((grouped['good_dist'] + eps) / (grouped['bad_dist'] + eps))
-    grouped['iv'] = (grouped['good_dist'] - grouped['bad_dist']) * grouped['woe']
+        Returns:
+        dict: A dictionary with bins as keys and their corresponding WoE values.
+        """
+        woe_dict = {}
+        total_good = df[target].sum()
+        total_bad = df[target].count() - total_good
 
-    iv = grouped['iv'].sum()
+        for bin_id in df[feature].unique():
+            bin_data = df[df[feature] == bin_id]
+            good = bin_data[target].sum()
+            bad = bin_data[target].count() - good
 
-    return iv
+            if good == 0 or bad == 0:
+                woe = 0  # Handling cases where good or bad count is zero to avoid division by zero
+            else:
+                woe = np.log((good / total_good) / (bad / total_bad))
+
+            woe_dict[bin_id] = woe
+
+        return woe_dict
+
+    def create_binned_features(df, features, num_bins):
+        """
+        Create binned features for the specified features in the input DataFrame using the quantile method.
+
+        Parameters:
+        df (pd.DataFrame): The input DataFrame.
+        features (list): A list of feature names to be binned.
+        num_bins (int): The number of bins to create for the features.
+
+        Returns:
+        pd.DataFrame: The input DataFrame with the new binned features added.
+        """
+        for feature in features:
+            df[f"{feature}_binned"] = pd.qcut(df[feature], q=num_bins, labels=False, duplicates='drop')
+        return df
+
+    # Ensure the target feature is included in the returned DataFrame
+    data[target] = data[target]
+
+    # Create binned features
+    data = create_binned_features(data, features_to_bin, num_bins)
+
+    # Calculate WoE for binned features
+    for feature in features_to_bin:
+        binned_feature = f"{feature}_binned"
+        woe_dict = woe_binning(data, binned_feature, target)
+        data[f'{binned_feature}_WoE'] = data[binned_feature].map(woe_dict)
+
+    # Drop binned features
+    binned_columns = [f"{feature}_binned" for feature in features_to_bin]
+    data.drop(columns=binned_columns, inplace=True)
+
+    return data
 
 
-def woe_binning(data, target='Binary_class', n_bins=5):
-    """
-    Perform WoE binning on all features of the DataFrame.
 
-    Parameters:
-    - data: pandas DataFrame
-    - target: the target column name
-    - n_bins: number of bins to divide continuous features into
-
-    Returns:
-    - binned_data: DataFrame with binned features
-    - woe_iv_dict: Dictionary with IV values for each feature
-    """
-    binned_data = data.copy()
-    woe_iv_dict = {}
-
-    for feature in data.columns:
-        if feature == target:
-            continue
-
-        # Apply binning to continuous features
-        if np.issubdtype(data[feature].dtype, np.number):
-            est = KBinsDiscretizer(n_bins=n_bins, encode='ordinal', strategy='quantile')
-            binned_data[feature] = est.fit_transform(data[[feature]]).astype(int)
-
-        # Calculate IV for the feature
-        iv = calculate_woe_iv(binned_data, feature, target)
-        woe_iv_dict[feature] = iv
-
-    return binned_data, woe_iv_dict
-
-
-def Visualize_clusters(customer_data):
-
-    features = customer_data[
-        ['R_norm', 'F_norm', 'M_norm', 'S_norm', 'Hour_norm', 'Day_norm', 'Month_norm', 'Year_norm']]
-
-    # Scale features for clustering
-    scaler = StandardScaler()
-    features_scaled = scaler.fit_transform(features)
-
-    pca = PCA(n_components=2)
-    principal_components = pca.fit_transform(features_scaled)
-    customer_data['PC1'] = principal_components[:, 0]
-    customer_data['PC2'] = principal_components[:, 1]
-
-    plt.figure(figsize=(10, 6))
-    sns.scatterplot(data=customer_data, x='PC1', y='PC2', hue='Classification', palette='viridis')
-    plt.title('RFMS Score Clusters with Temporal Features')
-    plt.xlabel('Principal Component 1')
-    plt.ylabel('Principal Component 2')
-    plt.legend(title='Classification')
-    plt.show()
