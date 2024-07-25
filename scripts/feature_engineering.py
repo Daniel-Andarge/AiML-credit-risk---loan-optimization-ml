@@ -8,6 +8,7 @@ from sklearn.preprocessing import KBinsDiscretizer
 from datetime import datetime
 from sklearn.decomposition import PCA
 
+
 # Set general aesthetics for the plots
 sns.set_style("whitegrid")
 
@@ -53,67 +54,54 @@ def create_aggregate_features(df):
     return df
 
 
-
-def calculate_rfms_score(df):
-    # Define the weights for each feature
-    recency_weight = 0.4
-    frequency_weight = 0.3
-    monetary_weight = 0.2
-    stdamount_weight = 0.05
-    meanamount_weight = 0.05
-    avgtransactionhour_weight = 0.1
-    avgtransactionday_weight = 0.1
-    avgtransactionmonth_weight = 0.1
-    avgtransactionyear_weight = 0.1
-
-    # Calculate the normalized RFMS score
-    df['RFMS_Score'] = (
-        df['Recency'].rank(method='dense', ascending=True) / len(df) * recency_weight + +
-        df['Frequency'].rank(method='dense', ascending=True) / len(df) * frequency_weight +
-        df['Monetary'].rank(method='dense', ascending=True) / len(df) * monetary_weight +
-        df['StdAmount'].rank(method='dense', ascending=True) / len(df) * stdamount_weight +
-        df['MeanAmount'].rank(method='dense', ascending=True) / len(df) * meanamount_weight +
-        df['AvgTransactionHour'].rank(method='dense', ascending=True) / len(df) * avgtransactionhour_weight +
-        df['AvgTransactionDay'].rank(method='dense', ascending=True) / len(df) * avgtransactionday_weight +
-        df['AvgTransactionMonth'].rank(method='dense', ascending=True) / len(df) * avgtransactionmonth_weight +
-        df['AvgTransactionYear'].rank(method='dense', ascending=True) / len(df) * avgtransactionyear_weight
-    )
-
-    return df
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
 
 
 def visualize_rfms_space(df):
-    # Extract the RFMS_Score
-    rfms_score = df['RFMS_Score']
+    # Extract the RFMS scores
+    r_score = df['Recency']
+    f_score = df['Frequency']
+    m_score = df['Monetary']
 
-    # Create the RFMS scatter plot
-    fig, ax = plt.subplots(figsize=(12, 8))
-    ax.scatter(range(len(rfms_score)), rfms_score, c=rfms_score, cmap='viridis', alpha=0.5)
-    ax.set_xlabel('User Index')
-    ax.set_ylabel('RFMS Score')
-    ax.set_title('RFMS Space Visualization')
-    cbar = plt.colorbar(ax.collections[0], ax=ax)
-    cbar.set_label('RFMS Score')
+    # Visualize the RFMS space
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(r_score, f_score, m_score)
+    ax.set_xlabel('Recency')
+    ax.set_ylabel('Frequency')
+    ax.set_zlabel('Monetary Value')
+    plt.title('RFMS Space')
 
-    # Defining  the boundary between high and low RFMS scores
-    rfms_threshold = np.percentile(rfms_score, 60)
-    ax.axhline(y=rfms_threshold, color='r', linestyle='--', label='RFMS Threshold')
+    # Defining the boundary between high and low RFMS scores
+    r_threshold = np.percentile(r_score, 60)
+    f_threshold = np.percentile(f_score, 50)
+    m_threshold = np.percentile(m_score, 50)
+
+    # Plot the thresholds
+    ax.plot([r_threshold, r_threshold], [0, max(f_score)], [0, max(m_score)], color='r', linestyle='--', label='Recency Threshold')
+    ax.plot([0, max(r_score)], [f_threshold, f_threshold], [0, max(m_score)], color='g', linestyle='--', label='Frequency Threshold')
+    ax.plot([0, max(r_score)], [0, max(f_score)], [m_threshold, m_threshold], color='b', linestyle='--', label='Monetary Threshold')
     ax.legend()
 
     plt.show()
 
-    return  rfms_threshold
+    return r_threshold, f_threshold, m_threshold
 
 
-def classify_users_by_rfms(df, rfms_threshold):
+def classify_users_by_rfms(df, r_threshold, f_threshold, m_threshold):
     df['Classification'] = 'High-risk'
-    df.loc[df['RFMS_Score'] >= rfms_threshold, 'Classification'] = 'Low-risk'
-    df['Binary_class'] = np.where(df['Classification'] == 'Low-risk', 0, 1)
+
+    # Identify Low-risk users based on RFMS thresholds
+    df.loc[(df['Recency'] <= r_threshold) & (df['Frequency'] >= f_threshold) & (
+                df['Monetary'] >= m_threshold), 'Classification'] = 'Low-risk'
+
+    df['is_high_risk'] = (df['Classification'] == 'High-risk').astype(int)
+
     return df
 
-
-import numpy as np
-import pandas as pd
 
 
 def calculate_woe_and_bin_features(data, features_to_bin, target, num_bins=5):
@@ -193,6 +181,3 @@ def calculate_woe_and_bin_features(data, features_to_bin, target, num_bins=5):
     data.drop(columns=binned_columns, inplace=True)
 
     return data
-
-
-
