@@ -1,26 +1,26 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import seaborn as sns
-
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 
 
 # Set general aesthetics for the plots
 sns.set_style("whitegrid")
-
+import pandas as pd
 
 
 def create_aggregate_features(df):
     """
-    Create aggregate features from a transaction dfset.
+    Create aggregate features from a transaction dataframe.
 
     Parameters:
-    df (pandas.dfFrame): The input transaction dfset.
+    df (pandas.DataFrame): The input transaction dataframe.
 
     Returns:
-    pandas.dfFrame: A dfFrame with aggregated features for each customer.
+    pandas.DataFrame: A dataframe with aggregated features for each customer.
     """
-    # datetime format
+    # Ensure datetime format
     df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'], format='%Y-%m-%d %H:%M:%S%z')
 
     # Extract temporal features
@@ -29,9 +29,9 @@ def create_aggregate_features(df):
     df['TransactionMonth'] = df['TransactionStartTime'].dt.month
     df['TransactionYear'] = df['TransactionStartTime'].dt.year
 
-    # Aggregate transaction df by CustomerId
-    customer_df = df.groupby('CustomerId').agg({
-        'TransactionStartTime': lambda x: (df['TransactionStartTime'].max() - x.max()).days,
+    # Aggregate transaction data by CustomerId
+    df_agg = df.groupby('CustomerId').agg({
+        'TransactionStartTime': lambda x: (x.max() - x.min()).days,
         'TransactionId': 'count',
         'Amount': ['sum', 'mean', 'std'],
         'TransactionHour': 'mean',
@@ -41,14 +41,30 @@ def create_aggregate_features(df):
     }).reset_index()
 
     # Rename the columns
-    customer_df.columns = ['CustomerId', 'Recency', 'Frequency', 'Monetary', 'MeanAmount',
-                             'StdAmount', 'AvgTransactionHour', 'AvgTransactionDay', 'AvgTransactionMonth',
-                             'AvgTransactionYear']
+    df_agg.columns = ['CustomerId', 'Recency', 'Frequency', 'Monetary', 'MeanAmount',
+                      'StdAmount', 'AvgTransactionHour', 'AvgTransactionDay', 'AvgTransactionMonth',
+                      'AvgTransactionYear']
 
-    df = customer_df.dropna()
+    # Calculate additional features
+    total_debits = df[df['Amount'] > 0].groupby('CustomerId')['Amount'].sum()
+    total_credits = df[df['Amount'] < 0].groupby('CustomerId')['Amount'].sum()
+    debit_count = df[df['Amount'] > 0].groupby('CustomerId')['TransactionId'].count()
+    credit_count = df[df['Amount'] < 0].groupby('CustomerId')['TransactionId'].count()
+    transaction_volatility = df.groupby('CustomerId')['Amount'].std()
 
-    return df
+    # Merge additional features
+    df_agg = df_agg.merge(total_debits.rename('TotalDebits'), on='CustomerId', how='left')
+    df_agg = df_agg.merge(total_credits.rename('TotalCredits'), on='CustomerId', how='left')
+    df_agg = df_agg.merge(debit_count.rename('DebitCount'), on='CustomerId', how='left')
+    df_agg = df_agg.merge(credit_count.rename('CreditCount'), on='CustomerId', how='left')
+    df_agg = df_agg.merge(transaction_volatility.rename('TransactionVolatility'), on='CustomerId', how='left')
 
+    # Calculate derived features
+    df_agg['MonetaryAmount'] = df_agg['TotalDebits'] + abs(df_agg['TotalCredits'])
+    df_agg['NetCashFlow'] = df_agg['TotalDebits'] - abs(df_agg['TotalCredits'])
+    df_agg['DebitCreditRatio'] = df_agg['TotalDebits'] / abs(df_agg['TotalCredits'])
+
+    return df_agg.dropna()
 
 
 def visualize_rfms_space(df):
@@ -56,11 +72,13 @@ def visualize_rfms_space(df):
     r_score = df['Recency']
     f_score = df['Frequency']
     m_score = df['Monetary']
+    debit_credit_ratio = df['DebitCreditRatio']
+    transaction_volatility = df['TransactionVolatility']
 
     # Visualize the RFMS space
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(r_score, f_score, m_score)
+    ax.scatter(r_score, f_score, m_score, c=debit_credit_ratio, cmap='viridis')
     ax.set_xlabel('Recency')
     ax.set_ylabel('Frequency')
     ax.set_zlabel('Monetary Value')
@@ -70,29 +88,36 @@ def visualize_rfms_space(df):
     r_threshold = np.percentile(r_score, 60)
     f_threshold = np.percentile(f_score, 50)
     m_threshold = np.percentile(m_score, 50)
+    dc_threshold = np.percentile(debit_credit_ratio, 60)
+    tv_threshold = np.percentile(transaction_volatility, 50)
 
     # Plot the thresholds
     ax.plot([r_threshold, r_threshold], [0, max(f_score)], [0, max(m_score)], color='r', linestyle='--', label='Recency Threshold')
     ax.plot([0, max(r_score)], [f_threshold, f_threshold], [0, max(m_score)], color='g', linestyle='--', label='Frequency Threshold')
     ax.plot([0, max(r_score)], [0, max(f_score)], [m_threshold, m_threshold], color='b', linestyle='--', label='Monetary Threshold')
+    ax.plot([0, max(r_score)], [0, max(f_score)], [0, max(m_score)], color='y', linestyle='--', label='Debit-Credit Ratio Threshold')
+    ax.plot([0, max(r_score)], [0, max(f_score)], [0, max(m_score)], color='m', linestyle='--', label='Transaction Volatility Threshold')
     ax.legend()
 
     plt.show()
 
-    return r_threshold, f_threshold, m_threshold
+    return r_threshold, f_threshold, m_threshold, dc_threshold, tv_threshold
 
-
-def classify_users_by_rfms(df, r_threshold, f_threshold, m_threshold):
+def classify_users_by_rfms(df, r_threshold, f_threshold, m_threshold, dc_threshold, tv_threshold):
     df['Classification'] = 'High-risk'
 
     # Identify Low-risk users based on RFMS thresholds
     df.loc[(df['Recency'] <= r_threshold) & (df['Frequency'] >= f_threshold) & (
-                df['Monetary'] >= m_threshold), 'Classification'] = 'Low-risk'
+        df['Monetary'] >= m_threshold), 'Classification'] = 'Low-risk'
+
+    # Reclassify users with low debit-credit ratio and low transaction volatility as Low-risk
+    df.loc[(df['Classification'] == 'High-risk') & (
+        df['DebitCreditRatio'] <= dc_threshold) & (
+        df['TransactionVolatility'] <= tv_threshold), 'Classification'] = 'Low-risk'
 
     df['is_high_risk'] = (df['Classification'] == 'High-risk').astype(int)
 
     return df
-
 
 
 def calculate_woe_and_bin_features(data, features_to_bin, target, num_bins=5):
@@ -131,7 +156,7 @@ def calculate_woe_and_bin_features(data, features_to_bin, target, num_bins=5):
             bad = bin_data[target].count() - good
 
             if good == 0 or bad == 0:
-                woe = 0  # Handling cases where good or bad count is zero to avoid division by zero
+                woe = 0 
             else:
                 woe = np.log((good / total_good) / (bad / total_bad))
 
