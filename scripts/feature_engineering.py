@@ -2,11 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import KBinsDiscretizer
-from datetime import datetime
-from sklearn.decomposition import PCA
+
 
 
 # Set general aesthetics for the plots
@@ -53,11 +49,6 @@ def create_aggregate_features(df):
 
     return df
 
-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
 
 
 def visualize_rfms_space(df):
