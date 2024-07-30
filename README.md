@@ -54,6 +54,16 @@ Analyze customer characteristics, behaviors, and credit profiles to identify pat
 
 Create new features, including RFMS scores, based on insights from EDA to enhance the models' predictive power.
 
+#### Customer Segmentation
+Constructing a default estimator (proxy) By visualizing all transactions in the RFMS space to establish a boundary Where customers are classified as high and low RFMS scores.
+
+1.Visualizing Transactions in RFMS space & Establishing boundaries.
+
+![rfms](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/rfms_space.png
+
+2. Segmentation 
+![rfms](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/rfms_space.png
+
 - **Notebook**: [Feature Engineering](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/notebooks/feature_engineering.ipynb)
 
 ## Weight of Evidence (WoE) Binning
@@ -65,6 +75,14 @@ Apply WoE binning to transform features into a suitable format for machine learn
 ## Feature Selection
 
 Select the most relevant features using techniques like correlation analysis and recursive feature elimination.
+
+1. Correlation Analysis 
+
+https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/correlation.png
+
+2. Selected Features 
+
+![features](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/selected_features.png)
 
 - **Notebook**: [Feature Selection](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/notebooks/feature_engineering.ipynb)
 
