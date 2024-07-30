@@ -57,11 +57,11 @@ Create new features, including RFMS scores, based on insights from EDA to enhanc
 #### Customer Segmentation
 Constructing a default estimator (proxy) By visualizing all transactions in the RFMS space to establish a boundary Where customers are classified as high and low RFMS scores.
 
-1.Visualizing Transactions in RFMS space & Establishing boundaries.
+- **Visualizing Transactions in RFMS space & Establishing boundaries**.
 
 ![rfms](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/rfms_space.png)
 
-2. Segmentation 
+- **Segmentation** 
 ![segmwnt](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/classfication.png)
 
 - **Notebook**: [Feature Engineering](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/notebooks/feature_engineering.ipynb)
@@ -76,11 +76,11 @@ Apply WoE binning to transform features into a suitable format for machine learn
 
 Select the most relevant features using techniques like correlation analysis and recursive feature elimination.
 
-1. Correlation Analysis 
+- **Correlation Analysis** 
 
 ![cor](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/correlation.png)
 
-2. Selected Features 
+- **Selected Features** 
 
 ![features](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/selected_features.png)
 
@@ -91,14 +91,14 @@ Select the most relevant features using techniques like correlation analysis and
 Develop various machine learning models to predict credit risk, score, and loan optimization metrics.
 
 #### Model 1 ( GradientBoosting ) : Predictive Credit Risk probability estimator Model.
--**Model Evaluation**
+- **Model Evaluation**
 ![model1](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/ROC-Curve.png)
     
 #### Model 2 ( Linear Regression ) : Credit Score (from risk probability estimates) Model.
--**Model Evaluation**
+- **Model Evaluation**
 ![model2](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/actual_prediction.png)
 
--**Credit Scoring**
+- **Credit Scoring**
 ![model2](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/creditScore.png)
 
 - **Notebook**: [Model Development](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/notebooks/model_building.ipynb)
