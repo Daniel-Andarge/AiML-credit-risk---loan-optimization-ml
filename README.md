@@ -1,4 +1,4 @@
-# Integrated Predictive Credit Risk Modeling and Optimized Lending Decisions with Advanced Segmentation
+# Integrated Credit Risk Modeling and Loan Optimization with Advanced Segmentation
 This project focuses on leveraging advanced data analytics and machine learning techniques to develop a comprehensive credit risk assessment, credit scoring, and loan optimization framework. The system is designed to support a Buy-Now-Pay-Later (BNPL) service offered by a financial service provider in partnership with an eCommerce company. The primary objectives include customer segmentation, credit risk modeling, and loan optimization.
 
 ## Project Objectives
@@ -62,7 +62,7 @@ Constructing a default estimator (proxy) By visualizing all transactions in the 
 ![rfms](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/rfms_space.png)
 
 2. Segmentation 
-![segmwnt](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/rfms_space.png)
+![segmwnt](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/classfication.png)
 
 - **Notebook**: [Feature Engineering](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/notebooks/feature_engineering.ipynb)
 
@@ -90,14 +90,16 @@ Select the most relevant features using techniques like correlation analysis and
 
 Develop various machine learning models to predict credit risk, score, and loan optimization metrics.
 
-#### Model 1 ( GradientBoosting ) : Predictive Credit Risk Model.
+#### Model 1 ( GradientBoosting ) : Predictive Credit Risk probability estimator Model.
 -**Model Evaluation**
-![model1](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/selected_features.png)
+![model1](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/ROC-Curve.png)
     
-#### Model 2 ( Linear Regression ) : Credit Scoring (from risk probability estimates) Model.
+#### Model 2 ( Linear Regression ) : Credit Score (from risk probability estimates) Model.
 -**Model Evaluation**
-![model2](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/selected_features.png)
+![model2](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/actual_prediction.png)
 
+-**Credit Scoring**
+![model2](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/creditScore.png)
 
 - **Notebook**: [Model Development](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/notebooks/model_building.ipynb)
 
