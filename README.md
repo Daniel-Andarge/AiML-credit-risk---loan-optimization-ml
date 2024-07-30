@@ -11,6 +11,7 @@ This project focuses on leveraging advanced data analytics and machine learning 
 - **Objective**: Develop machine learning models to predict credit risk and default probabilities.
 - **Outcome**: Provide a risk probability for each customer, aiding in the assessment of creditworthiness and default risk.
 - **Credit Score Model**: Create a credit score model based on risk probabilities, aligned with FICO standards.
+  ![creditscore](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/FICO_Score.png)
 
 ### 3. Loan Optimization Model
 - **Objective**: Develop a model to determine optimal loan amounts, repayment periods, and other terms.
