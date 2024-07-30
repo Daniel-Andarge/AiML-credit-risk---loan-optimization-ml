@@ -1,5 +1,4 @@
-# Integrated Credit Risk and Score Modeling with Customer Segmentation
-
+# Integrated Predictive Credit Risk Modeling and Optimized Lending Decisions with Advanced Segmentation
 This project focuses on leveraging advanced data analytics and machine learning techniques to develop a comprehensive credit risk assessment, credit scoring, and loan optimization framework. The system is designed to support a Buy-Now-Pay-Later (BNPL) service offered by a financial service provider in partnership with an eCommerce company. The primary objectives include customer segmentation, credit risk modeling, and loan optimization.
 
 ## Project Objectives
