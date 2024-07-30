@@ -59,10 +59,10 @@ Constructing a default estimator (proxy) By visualizing all transactions in the 
 
 1.Visualizing Transactions in RFMS space & Establishing boundaries.
 
-![rfms](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/rfms_space.png
+![rfms](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/rfms_space.png)
 
 2. Segmentation 
-![rfms](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/rfms_space.png
+![rfms](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/rfms_space.png)
 
 - **Notebook**: [Feature Engineering](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/notebooks/feature_engineering.ipynb)
 
@@ -78,7 +78,7 @@ Select the most relevant features using techniques like correlation analysis and
 
 1. Correlation Analysis 
 
-https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/correlation.png
+![cor](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/correlation.png)
 
 2. Selected Features 
 
