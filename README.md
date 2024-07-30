@@ -90,13 +90,13 @@ Select the most relevant features using techniques like correlation analysis and
 
 Develop various machine learning models to predict credit risk, score, and loan optimization metrics.
 
-#### Model 1 ( GradientBoosting ) : Risk probability estimator.
+#### Model 1 ( GradientBoosting ) : Predictive Credit Risk Model.
 -**Model Evaluation**
-![gbs](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/selected_features.png)
+![model1](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/selected_features.png)
     
-#### Model 2 ( Linear Regression ) : Credit scoring from risk probability estimates.
+#### Model 2 ( Linear Regression ) : Credit Scoring (from risk probability estimates) Model.
 -**Model Evaluation**
-![lr](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/selected_features.png)
+![model2](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/assets/selected_features.png)
 
 
 - **Notebook**: [Model Development](https://github.com/Daniel-Andarge/AiML-credit-risk---loan-optimization-ml/blob/main/notebooks/model_building.ipynb)
