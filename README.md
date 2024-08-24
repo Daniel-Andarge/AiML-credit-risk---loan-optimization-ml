@@ -149,19 +149,25 @@ Continuously monitor and refine the models to ensure they maintain high accuracy
 
 Open the Jupyter notebooks in your preferred environment and follow the instructions. Customize the code based on your dataset and requirements.
 
-## Contributing
 
-Contributions are welcome. Please follow these steps:
-1. Fork the repository.
-2. Create a new branch for your feature or bug fix.
-3. Make your changes and commit them.
-4. Push your branch to your forked repository.
-5. Create a pull request to the main repository.
+### Contributing
+
+While this project is primarily a portfolio piece and not open for external contributions, feedback and suggestions are always welcome. If you have any thoughts or comments, reach out via [email](mailto:andargedaniel90@gmail.com) or [LinkedIn](https://www.linkedin.com/in/danielandarge/).
+
 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
 
-## Acknowledgments
+### Contact
 
-Special thanks to the contributors and the open-source community for their support and resources.
+- **Email**: [Send Message](mailto:andargedaniel90@gmail.com)
+- **LinkedIn**: [Daniel Andarge](https://www.linkedin.com/in/danielandarge/)
+
+### Author
+
+👤 **Daniel Andarge**
+
+---
+
+
