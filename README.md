@@ -34,9 +34,10 @@ The project integrates supervised and unsupervised machine learning techniques, 
 9. [Monitoring and Continuous Improvement](#monitoring-and-continuous-improvement)
 10. [Installation](#installation)
 11. [Usage](#usage)
-12. [Contributing](#contributing)
-13. [License](#license)
-14. [Acknowledgments](#acknowledgments)
+12. [Project Report](#project-report)
+13. [Contributing](#contributing)
+14. [License](#license)
+15. [Acknowledgments](#acknowledgments)
 
 ## Data Collection and Preprocessing
 
@@ -149,6 +150,9 @@ Continuously monitor and refine the models to ensure they maintain high accuracy
 
 Open the Jupyter notebooks in your preferred environment and follow the instructions. Customize the code based on your dataset and requirements.
 
+## Project Report
+
+For a comprehensive overview of the project, please refer to the project report: [Project Report PDF](https://drive.google.com/file/d/1VROA-F8v9305I0Aj9vjCw3Ph63JXtkzT/view).
 
 ### Contributing
 
